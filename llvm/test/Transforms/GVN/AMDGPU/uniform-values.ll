@@ -9,7 +9,7 @@ define void @no_replace_uniform_with_non0(ptr %buf) {
 ; CHECK-NEXT:    [[COND:%.*]] = icmp eq i32 [[V1]], [[V2]]
 ; CHECK-NEXT:    br i1 [[COND]], label [[MATCHES:%.*]], label [[END:%.*]]
 ; CHECK:       matches:
-; CHECK-NEXT:    call void @opaque(i32 [[V1]])
+; CHECK-NEXT:    call void @opaque(i32 [[V2]])
 ; CHECK-NEXT:    br label [[END]]
 ; CHECK:       end:
 ; CHECK-NEXT:    call void @opaque(i32 [[V1]])
@@ -38,7 +38,7 @@ define void @no_replace_uniform_with_non0_swapped(ptr %buf) {
 ; CHECK-NEXT:    [[COND:%.*]] = icmp eq i32 [[V2]], [[V1]]
 ; CHECK-NEXT:    br i1 [[COND]], label [[MATCHES:%.*]], label [[END:%.*]]
 ; CHECK:       matches:
-; CHECK-NEXT:    call void @opaque(i32 [[V1]])
+; CHECK-NEXT:    call void @opaque(i32 [[V2]])
 ; CHECK-NEXT:    br label [[END]]
 ; CHECK:       end:
 ; CHECK-NEXT:    call void @opaque(i32 [[V1]])
@@ -124,7 +124,7 @@ define void @no_replace_uniform_with_non1(ptr %buf) {
 ; CHECK-NEXT:    [[COND:%.*]] = icmp eq i32 [[V1]], [[V3]]
 ; CHECK-NEXT:    br i1 [[COND]], label [[MATCHES:%.*]], label [[END:%.*]]
 ; CHECK:       matches:
-; CHECK-NEXT:    call void @opaque(i32 [[V1]])
+; CHECK-NEXT:    call void @opaque(i32 [[V3]])
 ; CHECK-NEXT:    br label [[END]]
 ; CHECK:       end:
 ; CHECK-NEXT:    call void @opaque(i32 [[V1]])
@@ -154,7 +154,7 @@ define void @replace_non_uniform_with_uniform1(ptr %buf, ptr %buf2) {
 ; CHECK-NEXT:    [[COND:%.*]] = icmp eq i32 [[V2]], [[V3]]
 ; CHECK-NEXT:    br i1 [[COND]], label [[MATCHES:%.*]], label [[END:%.*]]
 ; CHECK:       matches:
-; CHECK-NEXT:    call void @opaque(i32 [[V2]])
+; CHECK-NEXT:    call void @opaque(i32 [[V3]])
 ; CHECK-NEXT:    br label [[END]]
 ; CHECK:       end:
 ; CHECK-NEXT:    call void @opaque(i32 [[V3]])
