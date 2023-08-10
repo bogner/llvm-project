@@ -8134,11 +8134,13 @@ def _SLASH_ZW : CLJoined<"ZW">;
 
 def dxc_Group : OptionGroup<"<clang-dxc options>">, Visibility<[DXCOption]>,
   HelpText<"dxc compatibility options">;
-class DXCFlag<string name> : Option<["/", "-"], name, KIND_FLAG>,
-  Group<dxc_Group>, Flags<[NoXarchOption]>, Visibility<[DXCOption]>;
-class DXCJoinedOrSeparate<string name> : Option<["/", "-"], name,
-  KIND_JOINED_OR_SEPARATE>, Group<dxc_Group>, Flags<[NoXarchOption]>,
-  Visibility<[DXCOption]>;
+class DXCFlag<string name, list<OptionVisibility> vis = [DXCOption]> :
+  Option<["/", "-"], name, KIND_FLAG>,
+  Group<dxc_Group>, Flags<[NoXarchOption]>, Visibility<vis>;
+class DXCJoinedOrSeparate<string name,
+                          list<OptionVisibility> vis = [DXCOption]> :
+  Option<["/", "-"], name, KIND_JOINED_OR_SEPARATE>,
+  Group<dxc_Group>, Flags<[NoXarchOption]>, Visibility<vis>;
 
 def dxc_no_stdinc : DXCFlag<"hlsl-no-stdinc">,
   HelpText<"HLSL only. Disables all standard includes containing non-native compiler types and functions.">;
@@ -8163,9 +8165,10 @@ def target_profile : DXCJoinedOrSeparate<"T">, MetaVarName<"<profile>">,
          "lib_6_3, lib_6_4, lib_6_5, lib_6_6, lib_6_7, lib_6_x,"
          "ms_6_5, ms_6_6, ms_6_7,"
          "as_6_5, as_6_6, as_6_7">;
-def emit_pristine_llvm : DXCFlag<"emit-pristine-llvm">,
-  HelpText<"Emit pristine LLVM IR from the frontend by not running any LLVM passes at all."
-           "Same as -S + -emit-llvm + -disable-llvm-passes.">;
+def emit_pristine_llvm : DXCFlag<"emit-pristine-llvm",
+  [ClangOption, DXCOption]>,
+  HelpText<"Emit pristine LLVM IR from the frontend by not running "
+           "any LLVM passes at all.">;
 def fcgl : DXCFlag<"fcgl">, Alias<emit_pristine_llvm>;
 def enable_16bit_types : DXCFlag<"enable-16bit-types">, Alias<fnative_half_type>,
   HelpText<"Enable 16-bit types and disable min precision types."

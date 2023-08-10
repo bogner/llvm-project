@@ -364,7 +364,8 @@ phases::ID Driver::getFinalPhase(const DerivedArgList &DAL,
              (PhaseArg = DAL.getLastArg(options::OPT_rewrite_legacy_objc)) ||
              (PhaseArg = DAL.getLastArg(options::OPT__migrate)) ||
              (PhaseArg = DAL.getLastArg(options::OPT__analyze)) ||
-             (PhaseArg = DAL.getLastArg(options::OPT_emit_ast))) {
+             (PhaseArg = DAL.getLastArg(options::OPT_emit_ast)) ||
+             (PhaseArg = DAL.getLastArg(options::OPT_emit_pristine_llvm))) {
     FinalPhase = phases::Compile;
 
   // -S only runs up to the backend.
@@ -485,7 +486,8 @@ DerivedArgList *Driver::TranslateInputArgs(const InputArgList &Args) const {
   }
 
   // DXC mode quits before assembly if an output object file isn't specified.
-  if (IsDXCMode() && !Args.hasArg(options::OPT_dxc_Fo))
+  if (IsDXCMode() && !Args.hasArg(options::OPT_dxc_Fo) &&
+      !Args.hasArg(options::OPT_emit_pristine_llvm))
     DAL->AddFlagArg(nullptr, Opts.getOption(options::OPT_S));
 
   // Enforce -static if -miamcu is present.
@@ -4712,6 +4714,9 @@ Action *Driver::ConstructPhaseAction(
       return C.MakeAction<VerifyPCHJobAction>(Input, types::TY_Nothing);
     if (Args.hasArg(options::OPT_extract_api))
       return C.MakeAction<ExtractAPIJobAction>(Input, types::TY_API_INFO);
+    if (Args.hasArg(options::OPT_emit_pristine_llvm) &&
+        !Args.hasArg(options::OPT_dxc_Fo))
+      return C.MakeAction<CompileJobAction>(Input, types::TY_LLVM_IR);
     return C.MakeAction<CompileJobAction>(Input, types::TY_LLVM_BC);
   }
   case phases::Backend: {
@@ -5781,7 +5786,7 @@ const char *Driver::GetNamedOutputPath(Compilation &C, const JobAction &JA,
     return "-";
   }
 
-  if (JA.getType() == types::TY_PP_Asm &&
+  if ((JA.getType() == types::TY_PP_Asm || JA.getType() == types::TY_LLVM_IR) &&
       C.getArgs().hasArg(options::OPT_dxc_Fc)) {
     StringRef FcValue = C.getArgs().getLastArgValue(options::OPT_dxc_Fc);
     // TODO: Should we use `MakeCLOutputFilename` here? If so, we can probably
@@ -5789,7 +5794,7 @@ const char *Driver::GetNamedOutputPath(Compilation &C, const JobAction &JA,
     return C.addResultFile(C.getArgs().MakeArgString(FcValue.str()), &JA);
   }
 
-  if (JA.getType() == types::TY_Object &&
+  if ((JA.getType() == types::TY_Object || JA.getType() == types::TY_LLVM_BC) &&
       C.getArgs().hasArg(options::OPT_dxc_Fo)) {
     StringRef FoValue = C.getArgs().getLastArgValue(options::OPT_dxc_Fo);
     // TODO: Should we use `MakeCLOutputFilename` here? If so, we can probably
@@ -5811,7 +5816,8 @@ const char *Driver::GetNamedOutputPath(Compilation &C, const JobAction &JA,
 
   // DXC defaults to standard out when generating assembly. We check this after
   // any DXC flags that might specify a file.
-  if (AtTopLevel && JA.getType() == types::TY_PP_Asm && IsDXCMode())
+  if (AtTopLevel && IsDXCMode() &&
+      (JA.getType() == types::TY_PP_Asm || JA.getType() == types::TY_LLVM_IR))
     return "-";
 
   bool SpecifiedModuleOutput =

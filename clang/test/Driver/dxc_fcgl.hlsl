@@ -1,6 +1,8 @@
-// RUN: not %clang_dxc -fcgl -T lib_6_7 foo.hlsl -### %s 2>&1 | FileCheck %s
+// RUN: %clang_dxc -fcgl -T lib_6_7 -### %s 2>&1 | FileCheck --check-prefixes=CHECK,CHECK-ASM %s
+// RUN: %clang_dxc -fcgl -T lib_6_7 -Fc x.asm -### %s 2>&1 | FileCheck --check-prefixes=CHECK,CHECK-ASM %s
+// RUN: %clang_dxc -fcgl -T lib_6_7 -Fo x.obj -### %s 2>&1 | FileCheck --check-prefixes=CHECK,CHECK-OBJ %s
 
-// Make sure fcgl option flag which translated into "-S" "-emit-llvm" "-disable-llvm-passes".
-// CHECK:"-S"
-// CHECK-SAME:"-emit-llvm" "-disable-llvm-passes"
-
+// The -fcgl flag should disable llvm passes regardless of the output type
+// CHECK: "-cc1"
+// CHECK-ASM-SAME: -emit-llvm
+// CHECK-OBJ-SAME: -emit-llvm-bc
