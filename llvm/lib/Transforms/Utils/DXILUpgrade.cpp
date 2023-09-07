@@ -11,6 +11,7 @@
 #include "llvm/IR/Metadata.h"
 #include "llvm/IR/Module.h"
 #include "llvm/Support/Debug.h"
+#include "llvm/Transforms/Utils/DXIL.h"
 
 using namespace llvm;
 
@@ -33,6 +34,20 @@ static bool handleValVerMetadata(Module &M) {
   return true;
 }
 
+static bool handleShaderModel(Module &M) {
+  auto SM = dxil::ShaderModel::readDXIL(M);
+  if (Error E = SM.takeError()) {
+    report_fatal_error(std::move(E), /*gen_crash_diag=*/false);
+  }
+  if (SM->empty())
+    return false;
+
+  LLVM_DEBUG(dbgs() << "DXIL: Shader model " << *SM << "\n");
+  SM->embed(M);
+  SM->stripDXIL(M);
+  return true;
+}
+
 PreservedAnalyses DXILUpgradePass::run(Module &M, ModuleAnalysisManager &AM) {
   PreservedAnalyses PA;
   // We never add, remove, or change functions here.
@@ -41,6 +56,7 @@ PreservedAnalyses DXILUpgradePass::run(Module &M, ModuleAnalysisManager &AM) {
 
   bool Changed = false;
   Changed |= handleValVerMetadata(M);
+  Changed |= handleShaderModel(M);
 
   if (!Changed)
     return PreservedAnalyses::all();

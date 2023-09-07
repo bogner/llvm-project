@@ -19,6 +19,7 @@
 #include "llvm/IR/Module.h"
 #include "llvm/Pass.h"
 #include "llvm/TargetParser/Triple.h"
+#include "llvm/Transforms/Utils/DXIL.h"
 
 using namespace llvm;
 using namespace llvm::dxil;
@@ -47,7 +48,18 @@ bool DXILTranslateMetadata::runOnModule(Module &M) {
   dxil::ValidatorVersionMD ValVerMD(M);
   if (ValVerMD.isEmpty())
     ValVerMD.update(VersionTuple(1, 0));
-  dxil::createShaderModelMD(M);
+
+  auto SM = dxil::ShaderModel::get(M);
+  if (Error E = SM.takeError()) {
+    // TODO: It would be better to have invariants such that we can just
+    // llvm_unreachable/assert here
+    report_fatal_error(std::move(E), /*gen_crash_diag=*/false);
+  } else if (SM->empty())
+    report_fatal_error("Cannot generate DXIL without a shader model",
+                       /*gen_crash_diag=*/false);
+  SM->embedDXIL(M);
+  // TODO: We should probably call SM->strip(M) here, so that we're not leaving
+  // LLVM style details in the emitted DXIL.
 
   const dxil::Resources &Res =
       getAnalysis<DXILResourceWrapper>().getDXILResource();

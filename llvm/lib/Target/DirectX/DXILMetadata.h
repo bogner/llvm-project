@@ -32,7 +32,6 @@ public:
   bool isEmpty();
 };
 
-void createShaderModelMD(Module &M);
 void createEntryMD(Module &M, const uint64_t ShaderFlags);
 
 } // namespace dxil
