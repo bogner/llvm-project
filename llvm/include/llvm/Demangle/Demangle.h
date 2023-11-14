@@ -70,6 +70,50 @@ std::string demangle(std::string_view MangledName);
 bool nonMicrosoftDemangle(std::string_view MangledName, std::string &Result,
                           bool CanHaveLeadingDot = true);
 
+class DemangleStyle {
+  enum class Style {
+    None = 0,
+    Itanium = 1 << 0,
+    Rust = 1 << 1,
+    D = 1 << 2,
+    Microsoft = 1 << 3,
+
+    Any = Itanium | Rust | D | Microsoft
+  } S;
+  using T = std::underlying_type_t<Style>;
+
+  DemangleStyle(T S) : S(static_cast<Style>(S)) {}
+  DemangleStyle(Style S) : S(S) {}
+
+public:
+  DemangleStyle(const DemangleStyle &Other) = default;
+  DemangleStyle &operator=(const DemangleStyle &Other) = default;
+
+  static DemangleStyle None() { return Style::None; }
+  static DemangleStyle Itanium() { return Style::Itanium; };
+  static DemangleStyle Rust() { return Style::Rust; }
+  static DemangleStyle D() { return Style::D; }
+  static DemangleStyle Microsoft() { return Style::Microsoft; }
+  static DemangleStyle Any() { return Style::Any; }
+
+  DemangleStyle operator|(const DemangleStyle &RHS) const {
+    return DemangleStyle(static_cast<T>(S) | static_cast<T>(RHS.S));
+  }
+  DemangleStyle operator&(const DemangleStyle &RHS) const {
+    return DemangleStyle(static_cast<T>(S) & static_cast<T>(RHS.S));
+  }
+  DemangleStyle operator~() const {
+    return DemangleStyle(~static_cast<T>(S));
+  }
+  operator bool() const { return static_cast<bool>(S); }
+  explicit operator T() const { return static_cast<T>(S); }
+};
+
+/// Demangle a string using any of the demangling schemes in \c StyleFlags.
+std::optional<std::string> demangleWithStyle(std::string_view MangledName,
+                                             DemangleStyle StyleFlags,
+                                             bool CanHaveLeadingDot = true);
+
 /// "Partial" demangler. This supports demangling a string into an AST
 /// (typically an intermediate stage in itaniumDemangle) and querying certain
 /// properties or partially printing the demangled name.

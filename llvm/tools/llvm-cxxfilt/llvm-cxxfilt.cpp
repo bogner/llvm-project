@@ -73,9 +73,10 @@ static std::string demangle(const std::string &Mangled) {
     CanHaveLeadingDot = false;
   }
 
-  std::string Result;
-  if (nonMicrosoftDemangle(DecoratedStr, Result, CanHaveLeadingDot))
-    return Result;
+  DemangleStyle Style(DemangleStyle::Any() & ~DemangleStyle::Microsoft());
+  if (std::optional<std::string> Str =
+          demangleWithStyle(DecoratedStr, Style, CanHaveLeadingDot))
+    return *Str;
 
   std::string Prefix;
   char *Undecorated = nullptr;
@@ -88,7 +89,7 @@ static std::string demangle(const std::string &Mangled) {
     Undecorated = itaniumDemangle(DecoratedStr.substr(6));
   }
 
-  Result = Undecorated ? Prefix + Undecorated : Mangled;
+  std::string Result = Undecorated ? Prefix + Undecorated : Mangled;
   free(Undecorated);
   return Result;
 }
