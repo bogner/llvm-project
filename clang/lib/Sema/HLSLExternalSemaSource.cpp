@@ -488,16 +488,152 @@ static BuiltinTypeDeclBuilder setupBufferType(CXXRecordDecl *Decl, Sema &S,
 
 void HLSLExternalSemaSource::defineHLSLTypesWithForwardDeclarations() {
   CXXRecordDecl *Decl;
+
+  ////
+  // SM 5 Objects
+  // https://learn.microsoft.com/en-us/windows/win32/direct3dhlsl/d3d11-graphics-reference-sm5-objects
+
+  //// Buffers
+  // Buffer
+  Decl = BuiltinTypeDeclBuilder(*SemaPtr, HLSLNamespace, "Buffer")
+             .addSimpleTemplateParams({"element_type"})
+             .Record;
+  onCompletion(Decl, [this](CXXRecordDecl *Decl) {
+    setupBufferType(Decl, *SemaPtr, ResourceClass::SRV,
+                    ResourceKind::TypedBuffer, /*IsROV=*/false)
+        .addGetDimensionsMethod()
+        .addLoadMethods()
+        .addArraySubscriptOperators()
+        .completeDefinition();
+  });
+
+  // ByteAddressBuffer
+  Decl = BuiltinTypeDeclBuilder(*SemaPtr, HLSLNamespace, "ByteAddressBuffer")
+             .addSimpleTemplateParams({"element_type"})
+             .Record;
+  onCompletion(Decl, [this](CXXRecordDecl *Decl) {
+    setupBufferType(Decl, *SemaPtr, ResourceClass::SRV,
+                    ResourceKind::RawBuffer, /*IsROV=*/false)
+        .addGetDimensionsMethod()
+        .addLoadMethods("Load", /*NumElts=*/1)
+        .addLoadMethods("Load2", /*NumElts=*/2)
+        .addLoadMethods("Load3", /*NumElts=*/3)
+        .addLoadMethods("Load4", /*NumElts=*/4)
+        .completeDefinition();
+  });
+
+  // RWBuffer
   Decl = BuiltinTypeDeclBuilder(*SemaPtr, HLSLNamespace, "RWBuffer")
              .addSimpleTemplateParams({"element_type"})
              .Record;
   onCompletion(Decl, [this](CXXRecordDecl *Decl) {
     setupBufferType(Decl, *SemaPtr, ResourceClass::UAV,
                     ResourceKind::TypedBuffer, /*IsROV=*/false)
+        .addGetDimensionsMethod()
+        .addLoadMethods()
         .addArraySubscriptOperators()
         .completeDefinition();
   });
 
+  // RWByteAddressBuffer
+  Decl = BuiltinTypeDeclBuilder(*SemaPtr, HLSLNamespace, "RWByteAddressBuffer")
+             .addSimpleTemplateParams({"element_type"})
+             .Record;
+  onCompletion(Decl, [this](CXXRecordDecl *Decl) {
+    setupBufferType(Decl, *SemaPtr, ResourceClass::UAV, ResourceKind::RawBuffer,
+                    /*IsROV=*/false)
+        .addGetDimensionsMethod()
+        .addLoadMethods("Load", /*NumElts=*/1)
+        .addLoadMethods("Load2", /*NumElts=*/2)
+        .addLoadMethods("Load3", /*NumElts=*/3)
+        .addLoadMethods("Load4", /*NumElts=*/4)
+        .addInterlockedMethods()
+        .addStoreMethods("Store", /*NumElts=*/1)
+        .addStoreMethods("Store2", /*NumElts=*/2)
+        .addStoreMethods("Store3", /*NumElts=*/3)
+        .addStoreMethods("Store4", /*NumElts=*/4)
+        .completeDefinition();
+  });
+
+  //// Structured Buffers
+  // StructuredBuffer
+  Decl = BuiltinTypeDeclBuilder(*SemaPtr, HLSLNamespace, "StructuredBuffer")
+             .addSimpleTemplateParams({"element_type"})
+             .Record;
+  onCompletion(Decl, [this](CXXRecordDecl *Decl) {
+    setupBufferType(Decl, *SemaPtr, ResourceClass::SRV,
+                    ResourceKind::StructuredBuffer, /*IsROV=*/false)
+        .addGetDimensionsMethod()
+        .addLoadMethods()
+        .addArraySubscriptOperators()
+        .completeDefinition();
+  });
+
+  // RWStructuredBuffer
+  Decl = BuiltinTypeDeclBuilder(*SemaPtr, HLSLNamespace, "RWStructuredBuffer")
+             .addSimpleTemplateParams({"element_type"})
+             .Record;
+  onCompletion(Decl, [this](CXXRecordDecl *Decl) {
+    setupBufferType(Decl, *SemaPtr, ResourceClass::UAV,
+                    ResourceKind::StructuredBuffer, /*IsROV=*/false)
+        .addGetDimensionsMethod()
+        .addCounterMethods() // IncrementCounter/DecrementCounter
+        .addLoadMethods()
+        .addArraySubscriptOperators()
+        .completeDefinition();
+  });
+
+  // AppendStructuredBuffer
+  Decl =
+      BuiltinTypeDeclBuilder(*SemaPtr, HLSLNamespace, "AppendStructuredBuffer")
+          .addSimpleTemplateParams({"element_type"})
+          .Record;
+  onCompletion(Decl, [this](CXXRecordDecl *Decl) {
+    setupBufferType(Decl, *SemaPtr, ResourceClass::UAV,
+                    ResourceKind::StructuredBuffer, /*IsROV=*/false)
+        .addGetDimensionsMethod()
+        .addAppendMethod()
+        .completeDefinition();
+  });
+
+  // ConsumeStructuredBuffer
+  Decl =
+      BuiltinTypeDeclBuilder(*SemaPtr, HLSLNamespace, "ConsumeStructuredBuffer")
+          .addSimpleTemplateParams({"element_type"})
+          .Record;
+  onCompletion(Decl, [this](CXXRecordDecl *Decl) {
+    setupBufferType(Decl, *SemaPtr, ResourceClass::UAV,
+                    ResourceKind::StructuredBuffer, /*IsROV=*/false)
+        .addConsumeMethod()
+        .addArraySubscriptOperators()
+        .completeDefinition();
+  });
+
+  //// Patch Constant
+  // TODO: InputPatch
+  // TODO: OutputPatch
+
+  //// Textures
+  // TODO: Texture1D
+  // TODO: Texture1DArray
+  // TODO: Texture2D
+  // TODO: Texture2DArray
+  // TODO: Texture3D
+  // TODO: TextureCube
+  // TODO: TextureCubeArray
+  // TODO: Texture2DMS
+  // TODO: Texture2DMSArray
+  // TODO: RWTexture1D
+  // TODO: RWTexture1DArray
+  // TODO: RWTexture2D
+  // TODO: RWTexture2DArray
+  // TODO: RWTexture3D
+
+  ////
+  // SM 5.1 ROV Objects
+  // https://learn.microsoft.com/en-us/windows/win32/direct3dhlsl/shader-model-5-1-objects
+
+  // RasterizerOrderedBuffer
   Decl =
       BuiltinTypeDeclBuilder(*SemaPtr, HLSLNamespace, "RasterizerOrderedBuffer")
           .addSimpleTemplateParams({"element_type"})
@@ -505,10 +641,53 @@ void HLSLExternalSemaSource::defineHLSLTypesWithForwardDeclarations() {
   onCompletion(Decl, [this](CXXRecordDecl *Decl) {
     setupBufferType(Decl, *SemaPtr, ResourceClass::UAV,
                     ResourceKind::TypedBuffer, /*IsROV=*/true)
+        .addGetDimensionsMethod()
+        .addLoadMethods()
         .addArraySubscriptOperators()
         .completeDefinition();
   });
 
+  // RasterizerOrderedByteAddressBuffer
+  Decl = BuiltinTypeDeclBuilder(*SemaPtr, HLSLNamespace,
+                                "RasterizerOrderedByteAddressBuffer")
+             .addSimpleTemplateParams({"element_type"})
+             .Record;
+  onCompletion(Decl, [this](CXXRecordDecl *Decl) {
+    setupBufferType(Decl, *SemaPtr, ResourceClass::UAV,
+                    ResourceKind::RawBuffer, /*IsROV=*/true)
+        .addGetDimensionsMethod()
+        .addLoadMethods("Load", /*NumElts=*/1)
+        .addLoadMethods("Load2", /*NumElts=*/2)
+        .addLoadMethods("Load3", /*NumElts=*/3)
+        .addLoadMethods("Load4", /*NumElts=*/4)
+        .addInterlockedMethods()
+        .addStoreMethods("Store", /*NumElts=*/1)
+        .addStoreMethods("Store2", /*NumElts=*/2)
+        .addStoreMethods("Store3", /*NumElts=*/3)
+        .addStoreMethods("Store4", /*NumElts=*/4)
+        .completeDefinition();
+  });
+
+  // RasterizerOrderedStructuredBuffer
+  Decl = BuiltinTypeDeclBuilder(*SemaPtr, HLSLNamespace,
+                                "RasterizerOrderedStructuredBuffer")
+             .addSimpleTemplateParams({"element_type"})
+             .Record;
+  onCompletion(Decl, [this](CXXRecordDecl *Decl) {
+    setupBufferType(Decl, *SemaPtr, ResourceClass::UAV,
+                    ResourceKind::StructuredBuffer, /*IsROV=*/true)
+        .addGetDimensionsMethod()
+        .addCounterMethods() // IncrementCounter/DecrementCounter
+        .addLoadMethods()
+        .addArraySubscriptOperators()
+        .completeDefinition();
+  });
+
+  // TODO: RasterizerOrderedTexture1D
+  // TODO: RasterizerOrderedTexture1DArray
+  // TODO: RasterizerOrderedTexture2D
+  // TODO: RasterizerOrderedTexture2DArray
+  // TODO: RasterizerOrderedTexture3D
 }
 
 void HLSLExternalSemaSource::onCompletion(CXXRecordDecl *Record,
