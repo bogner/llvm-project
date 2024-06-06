@@ -115,6 +115,14 @@ GlobalVariable *replaceBuffer(CGHLSLRuntime::Buffer &Buf) {
 
 } // namespace
 
+llvm::Type *CGHLSLRuntime::convertHLSLSpecificType(const Type *T) {
+  assert(T->isHLSLSpecificType() && "Not an HLSL specific type!");
+
+  // TODO: What do we actually want to do generically here? OpenCL uses a
+  // pointer in a particular address space.
+  llvm_unreachable("Generic handling of HLSL types is not implemented yet");
+}
+
 llvm::Triple::ArchType CGHLSLRuntime::getArch() {
   return CGM.getTarget().getTriple().getArch();
 }
