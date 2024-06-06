@@ -413,6 +413,11 @@ public:
     return nullptr;
   }
 
+  /// Return an LLVM type that corresponds to an HLSL type.
+  virtual llvm::Type *getHLSLType(CodeGenModule &CGM, const Type *T) const {
+    return nullptr;
+  }
+
 protected:
   static std::string qualifyWindowsLibrary(StringRef Lib);
 
@@ -463,6 +468,9 @@ createBPFTargetCodeGenInfo(CodeGenModule &CGM);
 
 std::unique_ptr<TargetCodeGenInfo>
 createCSKYTargetCodeGenInfo(CodeGenModule &CGM, unsigned FLen);
+
+std::unique_ptr<TargetCodeGenInfo>
+createDirectXTargetCodeGenInfo(CodeGenModule &CGM);
 
 std::unique_ptr<TargetCodeGenInfo>
 createHexagonTargetCodeGenInfo(CodeGenModule &CGM);
