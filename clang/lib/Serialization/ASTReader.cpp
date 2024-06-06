@@ -7391,6 +7391,9 @@ QualType ASTReader::GetType(TypeID ID) {
     case PREDEF_TYPE_RESERVE_ID_ID:
       T = Context.OCLReserveIDTy;
       break;
+    case PREDEF_TYPE_HLSL_RESOURCE_ID:
+      T = Context.HLSLResourceTy;
+      break;
     case PREDEF_TYPE_AUTO_DEDUCT:
       T = Context.getAutoDeductType();
       break;
