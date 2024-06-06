@@ -414,6 +414,11 @@ public:
     return nullptr;
   }
 
+  /// Return an LLVM type that corresponds to an HLSL type.
+  virtual llvm::Type *getHLSLType(CodeGenModule &CGM, const Type *T) const {
+    return nullptr;
+  }
+
   static void
   setBranchProtectionFnAttributes(const TargetInfo::BranchProtectionInfo &BPI,
                                   llvm::Function &F);
@@ -472,6 +477,9 @@ createBPFTargetCodeGenInfo(CodeGenModule &CGM);
 
 std::unique_ptr<TargetCodeGenInfo>
 createCSKYTargetCodeGenInfo(CodeGenModule &CGM, unsigned FLen);
+
+std::unique_ptr<TargetCodeGenInfo>
+createDirectXTargetCodeGenInfo(CodeGenModule &CGM);
 
 std::unique_ptr<TargetCodeGenInfo>
 createHexagonTargetCodeGenInfo(CodeGenModule &CGM);
