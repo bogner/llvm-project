@@ -24,7 +24,19 @@ public:
 
 llvm::Type *DirectXTargetCodeGenInfo::getHLSLType(CodeGenModule &CGM,
                                                   const Type *Ty) const {
-  return nullptr;
+  auto *BuiltinTy = dyn_cast<BuiltinType>(Ty);
+  if (!BuiltinTy || BuiltinTy->getKind() != BuiltinType::HLSLResource)
+    return nullptr;
+
+  llvm::LLVMContext &Ctx = CGM.getLLVMContext();
+
+  // TODO: Get all this from the attributes...
+  llvm::Type *ElTy = llvm::FixedVectorType::get(llvm::Type::getFloatTy(Ctx), 4);
+  bool IsWriteable = true;
+  bool IsROV = false;
+
+  return llvm::TargetExtType::get(Ctx, "dx.TypedBuffer", {ElTy},
+                                  {IsWriteable, IsROV});
 }
 
 std::unique_ptr<TargetCodeGenInfo>
