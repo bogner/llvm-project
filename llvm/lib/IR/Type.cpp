@@ -839,6 +839,8 @@ static TargetTypeInfo getTargetTypeInfo(const TargetExtType *Ty) {
   if (Name.starts_with("spirv."))
     return TargetTypeInfo(PointerType::get(C, 0), TargetExtType::HasZeroInit,
                           TargetExtType::CanBeGlobal);
+  if (Name.starts_with("dx."))
+    return TargetTypeInfo(PointerType::get(C, 0), TargetExtType::CanBeGlobal);
 
   // Opaque types in the AArch64 name space.
   if (Name == "aarch64.svcount")
