@@ -480,5 +480,16 @@ TEST_F(FormatTestTableGen, DefAlignment) {
                Style);
 }
 
+TEST_F(FormatTestTableGen, NestedClassesInSquareBracketList) {
+  verifyFormat(
+      "def aaaaaaaaaaaaaaaaaa\n"
+      "    : BBBBBBBBBBBBBBBB<\n"
+      "          [CCCCCCCCCCCCCCCCCCCCC<0>],\n"
+      "          [aaaaaaaaaaaaaaaa,\n"
+      "           AAAAAAAAAAAAAAAAAAAAAAAAAAA<0, BBBBBBBBBBBBBBBBBBBBB<0>>],\n"
+      "          [aaaaaaaa, bbbbbbbbbb, cccccccccc]>;");
+}
+
+
 } // namespace format
 } // end namespace clang
