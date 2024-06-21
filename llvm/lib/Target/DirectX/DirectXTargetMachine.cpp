@@ -45,6 +45,7 @@ extern "C" LLVM_EXTERNAL_VISIBILITY void LLVMInitializeDirectXTarget() {
   initializeWriteDXILPassPass(*PR);
   initializeDXContainerGlobalsPass(*PR);
   initializeDXILOpLoweringLegacyPass(*PR);
+  initializeDXILResourceLoweringLegacyPassPass(*PR);
   initializeDXILTranslateMetadataPass(*PR);
   initializeDXILResourceWrapperPass(*PR);
   initializeShaderFlagsAnalysisWrapperPass(*PR);
@@ -78,6 +79,9 @@ public:
   FunctionPass *createTargetRegisterAllocator(bool) override { return nullptr; }
   void addCodeGenPrepare() override {
     addPass(createDXILIntrinsicExpansionLegacyPass());
+    // TODO: Add the DXIL resource lowering pass once the rest of the pipeline
+    // works with target("dx.") types:
+    // addPass(createDXILResourceLoweringLegacyPass());
     addPass(createDXILOpLoweringLegacyPass());
     addPass(createDXILTranslateMetadataPass());
     addPass(createDXILPrepareModulePass());

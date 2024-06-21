@@ -27,6 +27,7 @@ add_llvm_target(DirectXCodeGen
   DXILPrettyPrinter.cpp
   DXILResource.cpp
   DXILResourceAnalysis.cpp
+  DXILResourceLowering.cpp
   DXILShaderFlags.cpp
   DXILTranslateMetadata.cpp
 
