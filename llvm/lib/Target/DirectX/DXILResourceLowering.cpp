@@ -12,8 +12,14 @@
 //===----------------------------------------------------------------------===//
 
 #include "DirectX.h"
+#include "llvm/Analysis/DXILResource.h"
+#include "llvm/IR/IRBuilder.h"
+#include "llvm/IR/Intrinsics.h"
+#include "llvm/IR/IntrinsicsDirectX.h"
 #include "llvm/IR/Module.h"
+#include "llvm/IR/PassManager.h"
 #include "llvm/Pass.h"
+#include "llvm/Support/DXILABI.h"
 
 #define DEBUG_TYPE "dxil-resource-lowering"
 
@@ -51,6 +57,8 @@ static bool lowerResources(Module &M) {
 
 PreservedAnalyses DXILResourceLoweringPass::run(Module &M,
                                                 ModuleAnalysisManager &) {
+  if (lowerResources(M))
+    return PreservedAnalyses::none();
   return PreservedAnalyses::all();
 }
 
