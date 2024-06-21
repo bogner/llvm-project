@@ -11,6 +11,8 @@
 #ifndef LLVM_LIB_TARGET_DIRECTX_DIRECTX_H
 #define LLVM_LIB_TARGET_DIRECTX_DIRECTX_H
 
+#include "llvm/IR/PassManager.h"
+
 namespace llvm {
 class ModulePass;
 class PassRegistry;
@@ -39,6 +41,15 @@ void initializeDXILOpLoweringLegacyPass(PassRegistry &);
 
 /// Pass to lowering LLVM intrinsic call to DXIL op function call.
 ModulePass *createDXILOpLoweringLegacyPass();
+
+/// Transform resource types, bindings, and intrinsics to DXIL ops and metadata
+class DXILResourceLoweringPass
+    : public PassInfoMixin<DXILResourceLoweringPass> {
+public:
+  PreservedAnalyses run(Module &M, ModuleAnalysisManager &);
+};
+void initializeDXILResourceLoweringLegacyPassPass(PassRegistry &);
+ModulePass *createDXILResourceLoweringLegacyPass();
 
 /// Initializer for DXILTranslateMetadata.
 void initializeDXILTranslateMetadataPass(PassRegistry &);
