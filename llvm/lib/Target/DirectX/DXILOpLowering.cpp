@@ -74,16 +74,13 @@ static SmallVector<Value *> argVectorFlatten(CallInst *Orig,
 
 static void lowerIntrinsic(dxil::OpCode DXILOp, Function &F, Module &M) {
   IRBuilder<> B(M.getContext());
-  DXILOpBuilder DXILB(M, B);
-  Type *OverloadTy = DXILB.getOverloadTy(DXILOp, F.getFunctionType());
+  DXILOpBuilder OpBuilder(M, B);
   for (User *U : make_early_inc_range(F.users())) {
     CallInst *CI = dyn_cast<CallInst>(U);
     if (!CI)
       continue;
 
     SmallVector<Value *> Args;
-    Value *DXILOpArg = B.getInt32(static_cast<unsigned>(DXILOp));
-    Args.emplace_back(DXILOpArg);
     B.SetInsertPoint(CI);
     if (isVectorArgExpansion(F)) {
       SmallVector<Value *> NewArgs = argVectorFlatten(CI, B);
@@ -91,8 +88,11 @@ static void lowerIntrinsic(dxil::OpCode DXILOp, Function &F, Module &M) {
     } else
       Args.append(CI->arg_begin(), CI->arg_end());
 
-    CallInst *DXILCI =
-        DXILB.createDXILOpCall(DXILOp, F.getReturnType(), OverloadTy, Args);
+    // TODO: This should use tryCreateOp and fail gracefully on invalid inputs.
+    CallInst *DXILCI = OpBuilder.createOp(DXILOp, Args);
+    assert(DXILCI->getFunctionType()->getReturnType() ==
+               CI->getFunctionType()->getReturnType() &&
+           "DXILOpBuilder selected wrong overload...");
 
     CI->replaceAllUsesWith(DXILCI);
     CI->eraseFromParent();

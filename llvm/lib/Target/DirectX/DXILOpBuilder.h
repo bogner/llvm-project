@@ -14,6 +14,7 @@
 
 #include "DXILConstants.h"
 #include "llvm/ADT/SmallVector.h"
+#include "llvm/Support/Error.h"
 
 namespace llvm {
 class Module;
@@ -22,21 +23,37 @@ class CallInst;
 class Value;
 class Type;
 class FunctionType;
-class Use;
 
 namespace dxil {
 
 class DXILOpBuilder {
 public:
   DXILOpBuilder(Module &M, IRBuilderBase &B) : M(M), B(B) {}
-  /// Create an instruction that calls DXIL Op with return type, specified
-  /// opcode, and call arguments. \param OpCode Opcode of the DXIL Op call
-  /// constructed \param ReturnTy Return type of the DXIL Op call constructed
-  /// \param OverloadTy Overload type of the DXIL Op call constructed
-  /// \return DXIL Op call constructed
-  CallInst *createDXILOpCall(dxil::OpCode OpCode, Type *ReturnTy,
-                             Type *OverloadTy, SmallVector<Value *> Args);
-  Type *getOverloadTy(dxil::OpCode OpCode, FunctionType *FT);
+
+  /// Gets a specific overload type of the function for the given DXIL op.
+  FunctionType *getOpFunctionType(dxil::OpCode OpCode, Type *OverloadType);
+
+  /// Create a call instruction for the given DXIL op. The arguments
+  /// must be valid for an overload of the operation.
+  CallInst *createOp(dxil::OpCode Op, SmallVectorImpl<Value *> &Args);
+
+#define DXIL_OPCODE(Op, Name)                                                  \
+  CallInst *create##Name##Op(SmallVectorImpl<Value *> &Args) {                 \
+    return createOp(dxil::OpCode(Op), Args);                                   \
+  }
+#include "DXILOperation.inc"
+
+  /// Try to create a call instruction for the given DXIL op. Fails if the
+  /// overload is invalid.
+  Expected<CallInst *> tryCreateOp(dxil::OpCode Op,
+                                   SmallVectorImpl<Value *> &Args);
+#define DXIL_OPCODE(Op, Name)                                                  \
+  Expected<CallInst *> tryCreate##Name##Op(SmallVectorImpl<Value *> &Args) {   \
+    return tryCreateOp(dxil::OpCode(Op), Args);                                \
+  }
+#include "DXILOperation.inc"
+
+  /// Return the name of the given opcode.
   static const char *getOpCodeName(dxil::OpCode DXILOp);
 
 private:

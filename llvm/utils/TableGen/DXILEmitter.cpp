@@ -196,43 +196,6 @@ DXILOperationDesc::DXILOperationDesc(const Record *R) {
   }
 }
 
-/// Return a string representation of ParameterKind enum
-/// \param Kind Parameter Kind enum value
-/// \return std::string string representation of input Kind
-static std::string getParameterKindStr(ParameterKind Kind) {
-  switch (Kind) {
-  case ParameterKind::Invalid:
-    return "Invalid";
-  case ParameterKind::Void:
-    return "Void";
-  case ParameterKind::Half:
-    return "Half";
-  case ParameterKind::Float:
-    return "Float";
-  case ParameterKind::Double:
-    return "Double";
-  case ParameterKind::I1:
-    return "I1";
-  case ParameterKind::I8:
-    return "I8";
-  case ParameterKind::I16:
-    return "I16";
-  case ParameterKind::I32:
-    return "I32";
-  case ParameterKind::I64:
-    return "I64";
-  case ParameterKind::Overload:
-    return "Overload";
-  case ParameterKind::CBufferRet:
-    return "CBufferRet";
-  case ParameterKind::ResourceRet:
-    return "ResourceRet";
-  case ParameterKind::DXILHandle:
-    return "DXILHandle";
-  }
-  llvm_unreachable("Unknown llvm::dxil::ParameterKind enum");
-}
-
 /// Return a string representation of OverloadKind enum that maps to
 /// input LLVMType record
 /// \param R TableGen def record of class LLVMType
@@ -279,35 +242,56 @@ static std::string getOverloadKindStr(const Record *R) {
   }
 }
 
-/// Emit Enums of DXIL Ops
-/// \param A vector of DXIL Ops
-/// \param Output stream
-static void emitDXILEnums(std::vector<DXILOperationDesc> &Ops,
-                          raw_ostream &OS) {
-  OS << "#ifdef DXIL_OP_ENUM\n\n";
-  OS << "// Enumeration for operations specified by DXIL\n";
-  OS << "enum class OpCode : unsigned {\n";
-
-  for (auto &Op : Ops) {
-    // Name = ID, // Doc
-    OS << Op.OpName << " = " << Op.OpCode << ", // " << Op.Doc << "\n";
-  }
-
-  OS << "\n};\n\n";
-
-  OS << "// Groups for DXIL operations with equivalent function templates\n";
-  OS << "enum class OpCodeClass : unsigned {\n";
-  // Build an OpClass set to print
-  SmallSet<StringRef, 2> OpClassSet;
-  for (auto &Op : Ops) {
-    OpClassSet.insert(Op.OpClass);
-  }
-  for (auto &C : OpClassSet) {
-    OS << C << ",\n";
-  }
-  OS << "\n};\n\n";
-  OS << "#undef DXIL_OP_ENUM\n"
+static void emitDXILOpCodes(std::vector<DXILOperationDesc> &Ops,
+                            raw_ostream &OS) {
+  OS << "#ifdef DXIL_OPCODE\n";
+  for (auto &Op : Ops)
+    OS << "DXIL_OPCODE(" << Op.OpCode << ", " << Op.OpName << ")\n";
+  OS << "#undef DXIL_OPCODE\n";
+  OS << "\n";
   OS << "#endif\n\n";
+}
+
+static void emitDXILOpClasses(std::vector<DXILOperationDesc> &Ops,
+                              raw_ostream &OS) {
+  OS << "#ifdef DXIL_OPCLASS\n";
+  // TODO: This should probably just walk over DXILOpClass, but I'm keeping it
+  // this way for now in case it's important that it's only the used classes for
+  // some reason.
+  SmallSet<StringRef, 2> OpClassSet;
+  for (auto &Op : Ops)
+    OpClassSet.insert(Op.OpClass);
+  for (auto &C : OpClassSet)
+    OS << "DXIL_OPCLASS(" << C << ")\n";
+  OS << "#undef DXIL_OPCLASS\n";
+  OS << "\n";
+  OS << "#endif\n\n";
+}
+
+static void emitDXILOpOverloads(std::vector<DXILOperationDesc> &Ops,
+                                raw_ostream &OS) {
+  OS << "#ifndef DXIL_OP_OVERLOAD\n";
+  OS << "#define DXIL_OP_OVERLOAD(OpCode, Result, ...)\n";
+  OS << "#endif\n\n";
+  for (const DXILOperationDesc &Op : Ops) {
+    OS << "DXIL_OP_OVERLOAD(dxil::OpCode::" << Op.OpName;
+    for (const Record *Rec : Op.OpTypes) {
+      Record *VT = Rec->getValueAsDef("VT");
+      MVT Value = getValueType(VT);
+      if (Value.isOverloaded() || Value == MVT::Other)
+        OS << ", OP_OVERLOAD_TYPE";
+      else
+        OS << ", OP_SIMPLE_TYPE(" << uint32_t(Value.SimpleTy) << ")";
+    }
+    if (Op.OpTypes.size() == 1) {
+      // If we have nore parameter types at all we need an empty __VA_ARGS__ to
+      // keep the preprocessor happy.
+      OS << ", ";
+    }
+    OS << ")\n";
+  }
+  OS << "\n";
+  OS << "#undef DXIL_OP_OVERLOAD\n\n";
 }
 
 /// Emit map of DXIL operation to LLVM or DirectX intrinsic
@@ -444,22 +428,8 @@ static void emitDXILOperationTable(std::vector<DXILOperationDesc> &Ops,
 
   OS << "  unsigned Index = Prop.OpCodeClassNameOffset;\n";
   OS << "  return DXILOpCodeClassNameTable + Index;\n";
-  OS << "}\n ";
-
-  OS << "static const ParameterKind *getOpCodeParameterKind(const "
-        "OpCodeProperty &Prop) "
-        "{\n\n";
-  OS << "  static const ParameterKind DXILOpParameterKindTable[] = {\n";
-  Parameters.emit(
-      OS,
-      [](raw_ostream &ParamOS, ParameterKind Kind) {
-        ParamOS << "ParameterKind::" << getParameterKindStr(Kind);
-      },
-      "ParameterKind::Invalid");
-  OS << "  };\n\n";
-  OS << "  unsigned Index = Prop.ParameterTableOffset;\n";
-  OS << "  return DXILOpParameterKindTable + Index;\n";
   OS << "}\n\n";
+
   OS << "#undef DXIL_OP_OPERATION_TABLE\n";
   OS << "#endif\n\n";
 }
@@ -482,7 +452,9 @@ static void EmitDXILOperation(RecordKeeper &Records, raw_ostream &OS) {
     return A.OpCode < B.OpCode;
   });
 
-  emitDXILEnums(DXILOps, OS);
+  emitDXILOpCodes(DXILOps, OS);
+  emitDXILOpClasses(DXILOps, OS);
+  emitDXILOpOverloads(DXILOps, OS);
   emitDXILIntrinsicMap(DXILOps, OS);
   emitDXILOperationTable(DXILOps, OS);
 }
