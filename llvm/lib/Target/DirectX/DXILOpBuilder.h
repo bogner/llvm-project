@@ -30,9 +30,6 @@ class DXILOpBuilder {
 public:
   DXILOpBuilder(Module &M, IRBuilderBase &B) : M(M), B(B) {}
 
-  /// Gets a specific overload type of the function for the given DXIL op.
-  FunctionType *getOpFunctionType(dxil::OpCode OpCode, Type *OverloadType);
-
   /// Create a call instruction for the given DXIL op. The arguments
   /// must be valid for an overload of the operation.
   CallInst *createOp(dxil::OpCode Op, SmallVectorImpl<Value *> &Args);
@@ -57,6 +54,11 @@ public:
   static const char *getOpCodeName(dxil::OpCode DXILOp);
 
 private:
+  /// Gets a specific overload type of the function for the given DXIL op. If
+  /// the operation is not overloaded, \c OverloadType may be nullptr.
+  FunctionType *getOpFunctionType(dxil::OpCode OpCode,
+                                  Type *OverloadType = nullptr);
+
   Module &M;
   IRBuilderBase &B;
 };

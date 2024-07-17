@@ -268,6 +268,34 @@ static void emitDXILOpClasses(std::vector<DXILOperationDesc> &Ops,
   OS << "#endif\n\n";
 }
 
+static void emitDXILOpTypeDefinitions(raw_ostream &OS) {
+  // TODO: I don't like this.
+  OS << "#ifdef DXIL_GET_OP_TYPE_DEFINITIONS\n\n";
+  OS << "Type *Int1Ty = Type::getInt1Ty(Context);\n";
+  OS << "Type *Int16Ty = Type::getInt16Ty(Context);\n";
+  OS << "Type *Int32Ty = Type::getInt32Ty(Context);\n";
+  OS << "Type *Int64Ty = Type::getInt64Ty(Context);\n";
+  OS << "Type *HalfTy = Type::getHalfTy(Context);\n";
+  OS << "Type *FloatTy = Type::getFloatTy(Context);\n";
+  OS << "Type *DoubleTy = Type::getDoubleTy(Context);\n";
+  OS << "\n";
+  OS << "#undef DXIL_GET_OP_TYPE_DEFINITIONS\n";
+  OS << "#endif\n\n";
+}
+
+static void emitDXILOpOverloadTypes(std::vector<DXILOperationDesc> &Ops,
+                                    raw_ostream &OS) {
+  OS << "#ifndef DXIL_OP_OVERLOAD_TYPES\n";
+  OS << "#define DXIL_OP_OVERLOAD_TYPES(OpCode, ParamIdx, ...)\n";
+  OS << "#endif\n\n";
+  for (const DXILOperationDesc &Op : Ops) {
+    // TODO: emit a list of overload types?
+  }
+  OS << "\n";
+  OS << "#undef DXIL_OP_OVERLOAD_TYPES\n";
+  OS << "#endif\n\n";
+}
+
 static void emitDXILOpOverloads(std::vector<DXILOperationDesc> &Ops,
                                 raw_ostream &OS) {
   OS << "#ifndef DXIL_OP_OVERLOAD\n";
@@ -281,6 +309,7 @@ static void emitDXILOpOverloads(std::vector<DXILOperationDesc> &Ops,
       if (Value.isOverloaded() || Value == MVT::Other)
         OS << ", OP_OVERLOAD_TYPE";
       else
+        // TODO: Use OpTypeDefinitions?
         OS << ", OP_SIMPLE_TYPE(" << uint32_t(Value.SimpleTy) << ")";
     }
     if (Op.OpTypes.size() == 1) {
@@ -291,6 +320,8 @@ static void emitDXILOpOverloads(std::vector<DXILOperationDesc> &Ops,
     OS << ")\n";
   }
   OS << "\n";
+  OS << "#undef OP_OVERLOAD_TYPE\n";
+  OS << "#undef OP_SIMPLE_TYPE\n";
   OS << "#undef DXIL_OP_OVERLOAD\n\n";
 }
 
