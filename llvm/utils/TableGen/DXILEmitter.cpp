@@ -284,11 +284,7 @@ static std::string getOverloadKindStr(const Record *R) {
 /// \param Output stream
 static void emitDXILEnums(std::vector<DXILOperationDesc> &Ops,
                           raw_ostream &OS) {
-  // Sort by OpCode
-  llvm::sort(Ops, [](DXILOperationDesc &A, DXILOperationDesc &B) {
-    return A.OpCode < B.OpCode;
-  });
-
+  OS << "#ifdef DXIL_OP_ENUM\n\n";
   OS << "// Enumeration for operations specified by DXIL\n";
   OS << "enum class OpCode : unsigned {\n";
 
@@ -310,6 +306,8 @@ static void emitDXILEnums(std::vector<DXILOperationDesc> &Ops,
     OS << C << ",\n";
   }
   OS << "\n};\n\n";
+  OS << "#undef DXIL_OP_ENUM\n"
+  OS << "#endif\n\n";
 }
 
 /// Emit map of DXIL operation to LLVM or DirectX intrinsic
@@ -317,19 +315,17 @@ static void emitDXILEnums(std::vector<DXILOperationDesc> &Ops,
 /// \param Output stream
 static void emitDXILIntrinsicMap(std::vector<DXILOperationDesc> &Ops,
                                  raw_ostream &OS) {
+  OS << "#ifdef DXIL_OP_INTRINSIC\n";
   OS << "\n";
-  // FIXME: use array instead of SmallDenseMap.
-  OS << "static const SmallDenseMap<Intrinsic::ID, dxil::OpCode> LowerMap = "
-        "{\n";
-  for (auto &Op : Ops) {
+  for (const auto &Op : Ops) {
     if (Op.Intrinsic.empty())
       continue;
-    // {Intrinsic::sin, dxil::OpCode::Sin},
-    OS << "  { Intrinsic::" << Op.Intrinsic << ", dxil::OpCode::" << Op.OpName
-       << "},\n";
+    OS << "DXIL_OP_INTRINSIC(dxil::OpCode::" << Op.OpName
+       << ", Intrinsic::" << Op.Intrinsic << ")\n";
   }
-  OS << "};\n";
   OS << "\n";
+  OS << "#undef DXIL_OP_INTRINSIC\n";
+  OS << "#endif\n\n";
 }
 
 /// Convert operation attribute string to Attribute enum
@@ -355,10 +351,7 @@ static std::string emitDXILOperationAttr(SmallVector<std::string> Attrs) {
 /// \param Output stream
 static void emitDXILOperationTable(std::vector<DXILOperationDesc> &Ops,
                                    raw_ostream &OS) {
-  // Sort by OpCode.
-  llvm::sort(Ops, [](DXILOperationDesc &A, DXILOperationDesc &B) {
-    return A.OpCode < B.OpCode;
-  });
+  OS << "#ifdef DXIL_OP_OPERATION_TABLE\n\n";
 
   // Collect Names.
   SequenceToOffsetTable<std::string> OpClassStrings;
@@ -466,7 +459,9 @@ static void emitDXILOperationTable(std::vector<DXILOperationDesc> &Ops,
   OS << "  };\n\n";
   OS << "  unsigned Index = Prop.ParameterTableOffset;\n";
   OS << "  return DXILOpParameterKindTable + Index;\n";
-  OS << "}\n ";
+  OS << "}\n\n";
+  OS << "#undef DXIL_OP_OPERATION_TABLE\n";
+  OS << "#endif\n\n";
 }
 
 /// Entry function call that invokes the functionality of this TableGen backend
@@ -482,15 +477,14 @@ static void EmitDXILOperation(RecordKeeper &Records, raw_ostream &OS) {
   for (auto *Record : OpIntrMaps) {
     DXILOps.emplace_back(DXILOperationDesc(Record));
   }
-  OS << "#ifdef DXIL_OP_ENUM\n";
+  // Sort by opcode.
+  llvm::sort(DXILOps, [](DXILOperationDesc &A, DXILOperationDesc &B) {
+    return A.OpCode < B.OpCode;
+  });
+
   emitDXILEnums(DXILOps, OS);
-  OS << "#endif\n\n";
-  OS << "#ifdef DXIL_OP_INTRINSIC_MAP\n";
   emitDXILIntrinsicMap(DXILOps, OS);
-  OS << "#endif\n\n";
-  OS << "#ifdef DXIL_OP_OPERATION_TABLE\n";
   emitDXILOperationTable(DXILOps, OS);
-  OS << "#endif\n\n";
 }
 
 static TableGen::Emitter::Opt X("gen-dxil-operation", EmitDXILOperation,
