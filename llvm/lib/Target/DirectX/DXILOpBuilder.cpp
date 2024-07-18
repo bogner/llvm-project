@@ -11,6 +11,7 @@
 
 #include "DXILOpBuilder.h"
 #include "DXILConstants.h"
+#include "llvm/IR/DerivedTypes.h"
 #include "llvm/IR/IRBuilder.h"
 #include "llvm/IR/Module.h"
 #include "llvm/Support/DXILABI.h"
@@ -273,7 +274,7 @@ CallInst *DXILOpBuilder::createDXILOpCall(dxil::OpCode OpCode, Type *ReturnTy,
     DXILFn = M.getOrInsertFunction(DXILFnName, DXILOpFT);
   }
 
-  return B.CreateCall(DXILFn, Args);
+  return Builder.CreateCall(DXILFn, Args);
 }
 
 Type *DXILOpBuilder::getOverloadTy(dxil::OpCode OpCode, FunctionType *FT) {
@@ -329,5 +330,108 @@ Type *DXILOpBuilder::getOverloadTy(dxil::OpCode OpCode, FunctionType *FT) {
 const char *DXILOpBuilder::getOpCodeName(dxil::OpCode DXILOp) {
   return ::getOpCodeName(DXILOp);
 }
+
+StructType *DXILOpBuilder::getHandleTy() {
+  if (auto *ST =
+          StructType::getTypeByName(Builder.getContext(), "dx.types.Handle"))
+    return ST;
+  // DXIL defines the handle type as `%dx.types.Handle = type { i8 * }`, so
+  // we need `%dx.types.Handle = type { ptr }` here, which will turn into
+  // `i8 *` during the DXIL bitcode writer.
+  return StructType::create({Builder.getPtrTy()}, "dx.types.Handle");
+}
+
+StructType *DXILOpBuilder::getResBindTy() {
+  if (auto *ST =
+          StructType::getTypeByName(Builder.getContext(), "dx.types.ResBind"))
+    return ST;
+  Type *Int32Ty = Builder.getInt32Ty();
+  Type *Int8Ty = Builder.getInt8Ty();
+  return StructType::create({Int32Ty, Int32Ty, Int32Ty, Int8Ty},
+                            "dx.types.ResBind");
+}
+
+Constant *DXILOpBuilder::getResBind(uint32_t LowerBound, uint32_t UpperBound,
+                                    uint32_t SpaceID, dxil::ResourceClass RC) {
+  Type *Int32Ty = Builder.getInt32Ty();
+  Type *Int8Ty = Builder.getInt8Ty();
+  return ConstantStruct::get(
+      getResBindTy(), {ConstantInt::get(Int32Ty, LowerBound),
+                       ConstantInt::get(Int32Ty, UpperBound),
+                       ConstantInt::get(Int32Ty, SpaceID),
+                       ConstantInt::get(Int8Ty, llvm::to_underlying(RC))});
+}
+
+StructType *DXILOpBuilder::getResPropsTy() {
+  if (auto *ST = StructType::getTypeByName(Builder.getContext(),
+                                           "dx.types.ResourceProperties"))
+    return ST;
+  Type *Int32Ty = Builder.getInt32Ty();
+  return StructType::create({Int32Ty, Int32Ty}, "dx.types.ResourceProperties");
+}
+
+Constant *DXILOpBuilder::getResProps(uint32_t Word0, uint32_t Word1) {
+  Type *Int32Ty = Builder.getInt32Ty();
+  return ConstantStruct::get(
+      getResBindTy(),
+      {ConstantInt::get(Int32Ty, Word0), ConstantInt::get(Int32Ty, Word1)});
+}
+
+CallInst *DXILOpBuilder::createCreateHandleOp(dxil::ResourceClass RC,
+                                              uint32_t RangeID, Value *Index,
+                                              Value *NonUniform) {
+  // TODO: Tablegen.
+  const uint32_t Opcode = 57;
+
+  Type *Int32Ty = Builder.getInt32Ty();
+  Type *Int8Ty = Builder.getInt8Ty();
+  Type *Int1Ty = Builder.getInt1Ty();
+  FunctionCallee Fn = M.getOrInsertFunction(
+      "dx.op.createHandle",
+      FunctionType::get(getHandleTy(),
+                        {Int32Ty, Int8Ty, Int32Ty, Int32Ty, Int1Ty},
+                        /*IsVarArg=*/false));
+  return Builder.CreateCall(
+      Fn, {ConstantInt::get(Int32Ty, Opcode),
+           ConstantInt::get(Int8Ty, llvm::to_underlying(RC)),
+           ConstantInt::get(Int32Ty, RangeID), Index, NonUniform});
+}
+
+CallInst *DXILOpBuilder::createCreateHandleFromBindingOp(Constant *ResBind,
+                                                         Value *Index,
+                                                         Value *NonUniform) {
+  // TODO: Use DXILOpBuilder here
+  const uint32_t Opcode = 217;
+
+  Type *Int32Ty = Builder.getInt32Ty();
+  Type *Int1Ty = Builder.getInt1Ty();
+  FunctionCallee Fn = M.getOrInsertFunction(
+      "dx.op.createHandleFromBinding",
+      FunctionType::get(getHandleTy(),
+                        {Int32Ty, getResBindTy(), Int32Ty, Int1Ty},
+                        /*IsVarArg=*/false));
+  assert(ResBind->getType() == getResBindTy() &&
+         "Resource binding has wrong type");
+  return Builder.CreateCall(
+      Fn, {ConstantInt::get(Int32Ty, Opcode), ResBind, Index, NonUniform});
+}
+
+CallInst *DXILOpBuilder::createAnnotateHandle(Value *Handle,
+                                              Constant *ResProps) {
+  // TODO: Use DXILOpBuilder here
+  const uint32_t Opcode = 216;
+
+  Type *HandleTy = getHandleTy();
+  Type *Int32Ty = Builder.getInt32Ty();
+  FunctionCallee Fn = M.getOrInsertFunction(
+      "dx.op.annotateHandle",
+      FunctionType::get(HandleTy, {HandleTy, getResPropsTy()},
+                        /*IsVarArg=*/false));
+  assert(ResProps->getType() == getResPropsTy() &&
+         "Resource properties has wrong type");
+  return Builder.CreateCall(
+      Fn, {ConstantInt::get(Int32Ty, Opcode), Handle, ResProps});
+}
+
 } // namespace dxil
 } // namespace llvm
