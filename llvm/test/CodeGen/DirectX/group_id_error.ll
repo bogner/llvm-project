@@ -1,7 +1,8 @@
 ; RUN: not opt -S -dxil-op-lower  %s 2>&1 | FileCheck %s
 
 ; DXIL operation not valid for pixel stage
-; CHECK: LLVM ERROR: Invalid Shader Stage for DXIL operation - GroupId for DXIL Version 1.7
+; CHECK: in function test_group_id
+; CHECK-SAME: Cannot create GroupId operation: Invalid stage
 
 target triple = "dxil-pc-shadermodel6.7-pixel"
 

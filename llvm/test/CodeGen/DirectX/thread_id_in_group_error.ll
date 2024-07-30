@@ -1,7 +1,8 @@
 ; RUN: not opt -S -dxil-op-lower  %s 2>&1 | FileCheck %s
 
 ; DXIL operation sin is not valid in vertex stage
-; CHECK: LLVM ERROR: Invalid Shader Stage for DXIL operation - ThreadIdInGroup for DXIL Version 1.7
+; CHECK: in function test_thread_id_in_group
+; CHECK-SAME: Cannot create ThreadIdInGroup operation: Invalid stage
 
 target triple = "dxil-pc-shadermodel6.7-vertex"
 

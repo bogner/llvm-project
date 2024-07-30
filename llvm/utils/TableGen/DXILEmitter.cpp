@@ -150,7 +150,11 @@ DXILOperationDesc::DXILOperationDesc(const Record *R) {
         assert(knownType && "Specification of multiple differing overload "
                             "parameter types not yet supported");
       } else {
-        OverloadParamIndices.push_back(i);
+        // Skip the return value - nothing is overloaded on only return, and it
+        // makes it harder to determine the overload from an argument list
+        // later.
+        if (i != 0)
+          OverloadParamIndices.push_back(i);
       }
     }
     // Populate OpTypes array according to the type specification
@@ -493,8 +497,7 @@ static void emitDXILOperationTable(std::vector<DXILOperationDesc> &Ops,
     ClassSet.insert(Op.OpClass);
     OpClassStrings.add(Op.OpClass.data());
     SmallVector<ParameterKind> ParamKindVec;
-    // ParamKindVec is a vector of parameters. Skip return type at index 0
-    for (unsigned i = 1; i < Op.OpTypes.size(); i++) {
+    for (unsigned i = 0; i < Op.OpTypes.size(); i++) {
       ParamKindVec.emplace_back(getParameterKind(Op.OpTypes[i]));
     }
     ParameterMap[Op.OpClass] = ParamKindVec;
@@ -514,23 +517,13 @@ static void emitDXILOperationTable(std::vector<DXILOperationDesc> &Ops,
   OS << "  static const OpCodeProperty OpCodeProps[] = {\n";
   std::string Prefix = "";
   for (auto &Op : Ops) {
-    // Consider Op.OverloadParamIndex as the overload parameter index, by
-    // default
-    auto OLParamIdx = Op.OverloadParamIndex;
-    // If no overload parameter index is set, treat first parameter type as
-    // overload type - unless the Op has no parameters, in which case treat the
-    // return type - as overload parameter to emit the appropriate overload kind
-    // enum.
-    if (OLParamIdx < 0) {
-      OLParamIdx = (Op.OpTypes.size() > 1) ? 1 : 0;
-    }
     OS << Prefix << "  { dxil::OpCode::" << Op.OpName << ", "
        << OpStrings.get(Op.OpName) << ", OpCodeClass::" << Op.OpClass << ", "
        << OpClassStrings.get(Op.OpClass.data()) << ", "
        << getOverloadMaskString(Op.OverloadRecs) << ", "
        << getStageMaskString(Op.StageRecs) << ", "
        << getAttributeMaskString(Op.AttrRecs) << ", " << Op.OverloadParamIndex
-       << ", " << Op.OpTypes.size() - 1 << ", "
+       << ", " << Op.OpTypes.size() << ", "
        << Parameters.get(ParameterMap[Op.OpClass]) << " }";
     Prefix = ",\n";
   }

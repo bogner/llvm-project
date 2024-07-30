@@ -1,7 +1,8 @@
 ; RUN: not opt -S -dxil-op-lower  %s 2>&1 | FileCheck %s
 
 ; DXIL operation not valid for library stage
-; CHECK: Invalid Shader Stage for DXIL operation - ThreadId for DXIL Version 1.7
+; CHECK: in function test_thread_id
+; CHECK-SAME: Cannot create ThreadId operation: Invalid stage
 
 target triple = "dxil-pc-shadermodel6.7-library"
 
