@@ -30,6 +30,7 @@ namespace dxil {
 class DXILOpBuilder {
 public:
   DXILOpBuilder(Module &M, IRBuilderBase &B);
+
   /// Create an instruction that calls DXIL Op with return type, specified
   /// opcode, and call arguments.
   ///
@@ -48,7 +49,8 @@ public:
 private:
   Module &M;
   IRBuilderBase &B;
-  Triple TargetTriple;
+  VersionTuple DXILVersion;
+  Triple::EnvironmentType ShaderStage;
 };
 
 } // namespace dxil

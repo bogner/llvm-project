@@ -1,7 +1,7 @@
 ; RUN: not opt -S -dxil-op-lower  %s 2>&1 | FileCheck %s
 
 ; DXIL operation not valid for library stage
-; CHECK: LLVM ERROR: library : Invalid Shader Stage for DXIL operation - ThreadId
+; CHECK: Invalid Shader Stage for DXIL operation - ThreadId for DXIL Version 1.7
 
 target triple = "dxil-pc-shadermodel6.7-library"
 

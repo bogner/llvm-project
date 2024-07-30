@@ -1,7 +1,7 @@
 ; RUN: not opt -S -dxil-op-lower  %s 2>&1 | FileCheck %s
 
 ; DXIL operation sin is not valid in library stage
-; CHECK: LLVM ERROR: library : Invalid Shader Stage for DXIL operation - FlattenedThreadIdInGroup
+; CHECK: LLVM ERROR: Invalid Shader Stage for DXIL operation - FlattenedThreadIdInGroup for DXIL Version 1.7
 
 target triple = "dxil-pc-shadermodel6.7-library"
 
