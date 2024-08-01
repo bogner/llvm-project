@@ -15,6 +15,7 @@
 #include "DXILOpBuilder.h"
 #include "DirectX.h"
 #include "llvm/ADT/SmallVector.h"
+#include "llvm/Analysis/DXILResource.h"
 #include "llvm/CodeGen/Passes.h"
 #include "llvm/IR/DiagnosticInfo.h"
 #include "llvm/IR/IRBuilder.h"
@@ -23,6 +24,7 @@
 #include "llvm/IR/IntrinsicsDirectX.h"
 #include "llvm/IR/Module.h"
 #include "llvm/IR/PassManager.h"
+#include "llvm/InitializePasses.h"
 #include "llvm/Pass.h"
 #include "llvm/Support/ErrorHandling.h"
 
@@ -77,9 +79,10 @@ namespace {
 class OpLowerer {
   Module &M;
   DXILOpBuilder OpBuilder;
+  DXILResourceMap &DRM;
 
 public:
-  OpLowerer(Module &M) : M(M), OpBuilder(M) {}
+  OpLowerer(Module &M, DXILResourceMap &DRM) : M(M), OpBuilder(M), DRM(DRM) {}
 
   void replaceFunction(Function &F,
                        llvm::function_ref<Error(CallInst *CI)> ReplaceCall) {
@@ -122,6 +125,83 @@ public:
     });
   }
 
+  Value *createTmpHandleCast(Value *V, Type *Ty) {
+    Function *CastFn = Intrinsic::getDeclaration(&M, Intrinsic::dx_cast_handle,
+                                                 {Ty, V->getType()});
+    return OpBuilder.getIRB().CreateCall(CastFn, {V});
+  }
+
+  void lowerToCreateHandle(Function &F) {
+    IRBuilder<> &IRB = OpBuilder.getIRB();
+    Type *Int8Ty = IRB.getInt8Ty();
+    Type *Int32Ty = IRB.getInt32Ty();
+
+    replaceFunction(F, [&](CallInst *CI) -> Error {
+      IRB.SetInsertPoint(CI);
+
+      dxil::ResourceInfo &RI = DRM[CI];
+      dxil::ResourceInfo::ResourceBinding Binding = RI.getBinding();
+
+      std::array<Value *, 4> Args{
+          ConstantInt::get(Int8Ty, llvm::to_underlying(RI.getResourceClass())),
+          ConstantInt::get(Int32Ty, Binding.RecordID), CI->getArgOperand(3),
+          CI->getArgOperand(4)};
+      Expected<CallInst *> OpCall = OpBuilder.tryCreateCreateHandleOp(Args);
+      if (Error E = OpCall.takeError())
+        return E;
+
+      Value *Cast = createTmpHandleCast(*OpCall, CI->getType());
+
+      CI->replaceAllUsesWith(Cast);
+      CI->eraseFromParent();
+      return Error::success();
+    });
+  }
+
+  void lowerToBindAndAnnotateHandle(Function &F) {
+    IRBuilder<> &IRB = OpBuilder.getIRB();
+
+    replaceFunction(F, [&](CallInst *CI) -> Error {
+      IRB.SetInsertPoint(CI);
+
+      dxil::ResourceInfo &RI = DRM[CI];
+      dxil::ResourceInfo::ResourceBinding Binding = RI.getBinding();
+      std::pair<uint32_t, uint32_t> Props = RI.getAnnotateProps();
+
+      Constant *ResBind = OpBuilder.getResBind(
+          Binding.LowerBound, Binding.LowerBound + Binding.Size - 1,
+          Binding.Space, RI.getResourceClass());
+      std::array<Value *, 3> BindArgs{ResBind, CI->getArgOperand(3),
+                                      CI->getArgOperand(4)};
+      Expected<CallInst *> OpBind =
+          OpBuilder.tryCreateCreateHandleFromBindingOp(BindArgs);
+      if (Error E = OpBind.takeError())
+        return E;
+
+      std::array<Value *, 2> AnnotateArgs{
+          *OpBind, OpBuilder.getResProps(Props.first, Props.second)};
+      Expected<CallInst *> OpAnnotate =
+          OpBuilder.tryCreateAnnotateHandleOp(AnnotateArgs);
+      if (Error E = OpAnnotate.takeError())
+        return E;
+
+      Value *Cast = createTmpHandleCast(*OpAnnotate, CI->getType());
+
+      CI->replaceAllUsesWith(Cast);
+      CI->eraseFromParent();
+
+      return Error::success();
+    });
+  }
+
+  void lowerHandleFromBinding(Function &F) {
+    Triple TT(Triple(M.getTargetTriple()));
+    if (TT.getDXILVersion() < VersionTuple(1, 6))
+      lowerToCreateHandle(F);
+    else
+      lowerToBindAndAnnotateHandle(F);
+  }
+
   bool lowerIntrinsics() {
     bool Updated = false;
 
@@ -137,6 +217,8 @@ public:
     replaceFunctionWithOp(F, OpCode);                                          \
     break;
 #include "DXILOperation.inc"
+      case Intrinsic::dx_handle_fromBinding:
+        lowerHandleFromBinding(F);
       }
       Updated = true;
     }
@@ -149,10 +231,15 @@ namespace {
 /// A pass that transforms external global definitions into declarations.
 class DXILOpLowering : public PassInfoMixin<DXILOpLowering> {
 public:
-  PreservedAnalyses run(Module &M, ModuleAnalysisManager &) {
-    if (OpLowerer(M).lowerIntrinsics())
-      return PreservedAnalyses::none();
-    return PreservedAnalyses::all();
+  PreservedAnalyses run(Module &M, ModuleAnalysisManager &AM) {
+    DXILResourceMap &DRM = AM.getResult<DXILResourceAnalysis>(M);
+
+    bool MadeChanges = OpLowerer(M, DRM).lowerIntrinsics();
+    if (!MadeChanges)
+      return PreservedAnalyses::all();
+    PreservedAnalyses PA;
+    PA.preserve<DXILResourceAnalysis>();
+    return PA;
   }
 };
 } // namespace
@@ -161,15 +248,19 @@ namespace {
 class DXILOpLoweringLegacy : public ModulePass {
 public:
   bool runOnModule(Module &M) override {
-    return OpLowerer(M).lowerIntrinsics();
+    DXILResourceMap &DRM =
+        getAnalysis<DXILResourceWrapperPass>().getResourceMap();
+
+    return OpLowerer(M, DRM).lowerIntrinsics();
   }
   StringRef getPassName() const override { return "DXIL Op Lowering"; }
   DXILOpLoweringLegacy() : ModulePass(ID) {}
 
   static char ID; // Pass identification.
   void getAnalysisUsage(llvm::AnalysisUsage &AU) const override {
-    // Specify the passes that your pass depends on
     AU.addRequired<DXILIntrinsicExpansionLegacy>();
+    AU.addRequired<DXILResourceWrapperPass>();
+    AU.addPreserved<DXILResourceWrapperPass>();
   }
 };
 char DXILOpLoweringLegacy::ID = 0;
@@ -177,6 +268,7 @@ char DXILOpLoweringLegacy::ID = 0;
 
 INITIALIZE_PASS_BEGIN(DXILOpLoweringLegacy, DEBUG_TYPE, "DXIL Op Lowering",
                       false, false)
+INITIALIZE_PASS_DEPENDENCY(DXILResourceWrapperPass)
 INITIALIZE_PASS_END(DXILOpLoweringLegacy, DEBUG_TYPE, "DXIL Op Lowering", false,
                     false)
 

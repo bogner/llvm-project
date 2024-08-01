@@ -208,6 +208,23 @@ static StructType *getHandleType(LLVMContext &Ctx) {
                                Ctx);
 }
 
+static StructType *getResBindType(LLVMContext &Context) {
+  if (auto *ST = StructType::getTypeByName(Context, "dx.types.ResBind"))
+    return ST;
+  Type *Int32Ty = Type::getInt32Ty(Context);
+  Type *Int8Ty = Type::getInt8Ty(Context);
+  return StructType::create({Int32Ty, Int32Ty, Int32Ty, Int8Ty},
+                            "dx.types.ResBind");
+}
+
+static StructType *getResPropsType(LLVMContext &Context) {
+  if (auto *ST =
+          StructType::getTypeByName(Context, "dx.types.ResourceProperties"))
+    return ST;
+  Type *Int32Ty = Type::getInt32Ty(Context);
+  return StructType::create({Int32Ty, Int32Ty}, "dx.types.ResourceProperties");
+}
+
 static Type *getTypeFromOpParamType(OpParamType Kind, LLVMContext &Ctx,
                                     Type *OverloadTy) {
   switch (Kind) {
@@ -235,6 +252,10 @@ static Type *getTypeFromOpParamType(OpParamType Kind, LLVMContext &Ctx,
     return getResRetType(OverloadTy, Ctx);
   case OpParamType::HandleTy:
     return getHandleType(Ctx);
+  case OpParamType::ResBindTy:
+    return getResBindType(Ctx);
+  case OpParamType::ResPropsTy:
+    return getResPropsType(Ctx);
   }
   llvm_unreachable("Invalid parameter kind");
   return nullptr;
@@ -422,12 +443,31 @@ Expected<CallInst *> DXILOpBuilder::tryCreateOp(dxil::OpCode OpCode,
   return IRB.CreateCall(DXILFn, OpArgs);
 }
 
-CallInst *DXILOpBuilder::createOp(dxil::OpCode OpCode, ArrayRef<Value *> &Args,
+CallInst *DXILOpBuilder::createOp(dxil::OpCode OpCode, ArrayRef<Value *> Args,
                                   Type *RetTy) {
   Expected<CallInst *> Result = tryCreateOp(OpCode, Args, RetTy);
   if (Error E = Result.takeError())
     llvm_unreachable("Invalid arguments for operation");
   return *Result;
+}
+
+Constant *DXILOpBuilder::getResBind(uint32_t LowerBound, uint32_t UpperBound,
+                                    uint32_t SpaceID, dxil::ResourceClass RC) {
+  Type *Int32Ty = B.getInt32Ty();
+  Type *Int8Ty = B.getInt8Ty();
+  return ConstantStruct::get(
+      getResBindType(B.getContext()),
+      {ConstantInt::get(Int32Ty, LowerBound),
+       ConstantInt::get(Int32Ty, UpperBound),
+       ConstantInt::get(Int32Ty, SpaceID),
+       ConstantInt::get(Int8Ty, llvm::to_underlying(RC))});
+}
+
+Constant *DXILOpBuilder::getResProps(uint32_t Word0, uint32_t Word1) {
+  Type *Int32Ty = B.getInt32Ty();
+  return ConstantStruct::get(
+      getResPropsType(B.getContext()),
+      {ConstantInt::get(Int32Ty, Word0), ConstantInt::get(Int32Ty, Word1)});
 }
 
 const char *DXILOpBuilder::getOpCodeName(dxil::OpCode DXILOp) {
