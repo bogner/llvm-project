@@ -58,6 +58,11 @@ public:
   }
 #include "DXILOperation.inc"
 
+  /// Get a `%dx.types.ResRet` type with the given element type.
+  StructType *getResRetType(Type *ElementTy);
+  /// Get the `%dx.types.Handle` type.
+  StructType *getHandleType();
+
   /// Get a constant `%dx.types.ResBind` value.
   Constant *getResBind(uint32_t LowerBound, uint32_t UpperBound,
                        uint32_t SpaceID, dxil::ResourceClass RC);

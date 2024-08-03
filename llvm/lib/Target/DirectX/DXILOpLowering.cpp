@@ -202,6 +202,49 @@ public:
       lowerToBindAndAnnotateHandle(F);
   }
 
+  void lowerTypedBufferLoad(Function &F) {
+    IRBuilder<> &IRB = OpBuilder.getIRB();
+    Type *Int32Ty = IRB.getInt32Ty();
+
+    replaceFunction(F, [&](CallInst *CI) -> Error {
+      IRB.SetInsertPoint(CI);
+
+      Value *Handle =
+          createTmpHandleCast(CI->getArgOperand(0), OpBuilder.getHandleType());
+      Value *Index0 = CI->getArgOperand(1);
+      Value *Index1 = UndefValue::get(Int32Ty);
+      Type *OverloadTy =
+          OpBuilder.getResRetType(CI->getType()->getScalarType());
+
+      std::array<Value *, 3> Args{Handle, Index0, Index1};
+      Expected<CallInst *> OpCall =
+          OpBuilder.tryCreateBufferLoadOp(Args, OverloadTy);
+      if (Error E = OpCall.takeError())
+        return E;
+
+      Value *Vec = UndefValue::get(CI->getType());
+      for (int I = 0, E = 4; I != E; ++I) {
+        Value *Elt = IRB.CreateExtractValue(*OpCall, I);
+        Vec = IRB.CreateInsertElement(Vec, Elt, I);
+      }
+
+      CI->replaceAllUsesWith(Vec);
+      CI->eraseFromParent();
+
+      return Error::success();
+    });
+  }
+
+  void lowerTypedBufferStore(Function &F) {
+    IRBuilder<> &IRB = OpBuilder.getIRB();
+
+    replaceFunction(F, [&](CallInst *CI) -> Error {
+      IRB.SetInsertPoint(CI);
+
+      return Error::success();
+    });
+  }
+
   bool lowerIntrinsics() {
     bool Updated = false;
 
@@ -219,6 +262,13 @@ public:
 #include "DXILOperation.inc"
       case Intrinsic::dx_handle_fromBinding:
         lowerHandleFromBinding(F);
+        break;
+      case Intrinsic::dx_typedBufferLoad:
+        lowerTypedBufferLoad(F);
+        break;
+      case Intrinsic::dx_typedBufferStore:
+        lowerTypedBufferStore(F);
+        break;
       }
       Updated = true;
     }
