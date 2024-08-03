@@ -259,6 +259,70 @@ public:
       lowerToBindAndAnnotateHandle(F);
   }
 
+  void lowerTypedBufferLoad(Function &F) {
+    IRBuilder<> &IRB = OpBuilder.getIRB();
+    Type *Int32Ty = IRB.getInt32Ty();
+
+    replaceFunction(F, [&](CallInst *CI) -> Error {
+      IRB.SetInsertPoint(CI);
+
+      Value *Handle =
+          createTmpHandleCast(CI->getArgOperand(0), OpBuilder.getHandleType());
+      Value *Index0 = CI->getArgOperand(1);
+      Value *Index1 = UndefValue::get(Int32Ty);
+
+      Type *OldRetTy = CI->getType();
+      Type *NewRetTy = OpBuilder.getResRetType(OldRetTy->getScalarType());
+
+      std::array<Value *, 3> Args{Handle, Index0, Index1};
+      Expected<CallInst *> OpCall =
+          OpBuilder.tryCreateOp(OpCode::BufferLoad, Args, NewRetTy);
+      if (Error E = OpCall.takeError())
+        return E;
+
+      // For scalars, we extract the first element of the ResRet value.
+      if (!isa<FixedVectorType>(OldRetTy)) {
+        Value *EVI = IRB.CreateExtractValue(*OpCall, 0);
+        CI->replaceAllUsesWith(EVI);
+        CI->eraseFromParent();
+        return Error::success();
+      }
+
+      std::array<Value *, 4> Extracts = {};
+
+      // We've switched the return type from a vector to a struct, but at this
+      // point most vectors have probably already been scalarized. Try to
+      // forward arguments directly rather than inserting into and immediately
+      // extracting from a vector.
+      for (Use &U : make_early_inc_range(CI->uses()))
+        if (auto *EEI = dyn_cast<ExtractElementInst>(U.getUser()))
+          if (auto *IndexOp = dyn_cast<ConstantInt>(EEI->getIndexOperand())) {
+            size_t IndexVal = IndexOp->getZExtValue();
+            assert(IndexVal < 4 && "Index into buffer load out of range");
+            if (!Extracts[IndexVal])
+              Extracts[IndexVal] = IRB.CreateExtractValue(*OpCall, IndexVal);
+            EEI->replaceAllUsesWith(Extracts[IndexVal]);
+            EEI->eraseFromParent();
+          }
+
+      unsigned N = cast<FixedVectorType>(OldRetTy)->getNumElements();
+      // If there are still uses then we need to create a vector.
+      if (!CI->use_empty()) {
+        for (int I = 0, E = N; I != E; ++I)
+          if (!Extracts[I])
+            Extracts[I] = IRB.CreateExtractValue(*OpCall, I);
+
+        Value *Vec = UndefValue::get(OldRetTy);
+        for (int I = 0, E = N; I != E; ++I)
+          Vec = IRB.CreateInsertElement(Vec, Extracts[I], I);
+        CI->replaceAllUsesWith(Vec);
+      }
+
+      CI->eraseFromParent();
+      return Error::success();
+    });
+  }
+
   bool lowerIntrinsics() {
     bool Updated = false;
 
@@ -276,6 +340,10 @@ public:
 #include "DXILOperation.inc"
       case Intrinsic::dx_handle_fromBinding:
         lowerHandleFromBinding(F);
+        break;
+      case Intrinsic::dx_typedBufferLoad:
+        lowerTypedBufferLoad(F);
+        break;
       }
       Updated = true;
     }
