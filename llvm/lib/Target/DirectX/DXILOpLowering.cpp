@@ -292,6 +292,43 @@ public:
     });
   }
 
+  void lowerTypedBufferStore(Function &F) {
+    IRBuilder<> &IRB = OpBuilder.getIRB();
+    Type *Int8Ty = IRB.getInt8Ty();
+    Type *Int32Ty = IRB.getInt32Ty();
+
+    replaceFunction(F, [&](CallInst *CI) -> Error {
+      IRB.SetInsertPoint(CI);
+
+      Value *Handle =
+          createTmpHandleCast(CI->getArgOperand(0), OpBuilder.getHandleType());
+      Value *Index0 = CI->getArgOperand(1);
+      Value *Index1 = UndefValue::get(Int32Ty);
+      // For typed stores, the mask must always cover all four elements.
+      Constant *Mask = ConstantInt::get(Int8Ty, 0xF);
+
+      Value *Data = CI->getArgOperand(2);
+      Value *Data0 =
+          IRB.CreateExtractElement(Data, ConstantInt::get(Int32Ty, 0));
+      Value *Data1 =
+          IRB.CreateExtractElement(Data, ConstantInt::get(Int32Ty, 1));
+      Value *Data2 =
+          IRB.CreateExtractElement(Data, ConstantInt::get(Int32Ty, 2));
+      Value *Data3 =
+          IRB.CreateExtractElement(Data, ConstantInt::get(Int32Ty, 3));
+
+      std::array<Value *, 8> Args{Handle, Index0, Index1, Data0,
+                                  Data1,  Data2,  Data3,  Mask};
+      Expected<CallInst *> OpCall =
+          OpBuilder.tryCreateOp(OpCode::BufferStore, Args);
+      if (Error E = OpCall.takeError())
+        return E;
+
+      CI->eraseFromParent();
+      return Error::success();
+    });
+  }
+
   bool lowerIntrinsics() {
     bool Updated = false;
 
@@ -312,6 +349,9 @@ public:
         break;
       case Intrinsic::dx_typedBufferLoad:
         lowerTypedBufferLoad(F);
+        break;
+      case Intrinsic::dx_typedBufferStore:
+        lowerTypedBufferStore(F);
         break;
       }
       Updated = true;
