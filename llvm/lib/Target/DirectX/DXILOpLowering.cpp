@@ -247,7 +247,8 @@ public:
           createTmpHandleCast(CI->getArgOperand(0), OpBuilder.getHandleType());
       Value *Index0 = CI->getArgOperand(1);
       Value *Index1 = UndefValue::get(Int32Ty);
-      Type *RetTy = OpBuilder.getResRetType(CI->getType()->getScalarType());
+      Type *ElTy = cast<StructType>(CI->getType())->getElementType(0);
+      Type *RetTy = OpBuilder.getResRetType(ElTy);
 
       std::array<Value *, 3> Args{Handle, Index0, Index1};
       Expected<CallInst *> OpCall =
@@ -255,33 +256,18 @@ public:
       if (Error E = OpCall.takeError())
         return E;
 
-      std::array<Value *, 4> Extracts = {};
+      // We've switched the return type from an anonymous struct to a named one,
+      // so we need to update the types in the uses.
+      for (Use &U : make_early_inc_range(CI->uses())) {
+        // Uses other than extract value should be impossible at this point, as
+        // we shouldn't be able to call functions with the anonymous struct or
+        // store these directly.
+        auto *EVI = cast<ExtractValueInst>(U.getUser());
+        IRB.SetInsertPoint(EVI);
+        auto *NewEVI = IRB.CreateExtractValue(*OpCall, EVI->getIndices());
 
-      // We've switched the return type from a vector to a struct, but at this
-      // point most vectors have probably already been scalarized. Try to
-      // forward arguments directly rather than inserting into and immediately
-      // extracting from a vector.
-      for (Use &U : make_early_inc_range(CI->uses()))
-        if (auto *EEI = dyn_cast<ExtractElementInst>(U.getUser()))
-          if (auto *Index = dyn_cast<ConstantInt>(EEI->getIndexOperand())) {
-            size_t IndexVal = Index->getZExtValue();
-            assert(IndexVal < 4 && "Index into buffer load out of range");
-            if (!Extracts[IndexVal])
-              Extracts[IndexVal] = IRB.CreateExtractValue(*OpCall, IndexVal);
-            EEI->replaceAllUsesWith(Extracts[IndexVal]);
-            EEI->eraseFromParent();
-          }
-
-      // If there are still uses then we need to create a vector.
-      if (!CI->use_empty()) {
-        for (int I = 0, E = 4; I != E; ++I)
-          if (!Extracts[I])
-            Extracts[I] = IRB.CreateExtractValue(*OpCall, I);
-
-        Value *Vec = UndefValue::get(CI->getType());
-        for (int I = 0, E = 4; I != E; ++I)
-          Vec = IRB.CreateInsertElement(Vec, Extracts[I], I);
-        CI->replaceAllUsesWith(Vec);
+        EVI->replaceAllUsesWith(NewEVI);
+        EVI->eraseFromParent();
       }
 
       CI->eraseFromParent();

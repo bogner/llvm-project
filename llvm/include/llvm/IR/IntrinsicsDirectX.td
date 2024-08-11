@@ -31,7 +31,9 @@ def int_dx_handle_fromBinding
           [IntrNoMem]>;
 
 def int_dx_typedBufferLoad
-    : DefaultAttrsIntrinsic<[llvm_anyvector_ty], [llvm_any_ty, llvm_i32_ty]>;
+    : DefaultAttrsIntrinsic<
+          [llvm_any_ty, LLVMMatchType<0>, LLVMMatchType<0>, LLVMMatchType<0>],
+          [llvm_any_ty, llvm_i32_ty]>;
 def int_dx_typedBufferStore
     : DefaultAttrsIntrinsic<[], [llvm_any_ty, llvm_i32_ty, llvm_anyvector_ty]>;
 
