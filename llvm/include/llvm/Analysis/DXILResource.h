@@ -142,11 +142,16 @@ public:
     Binding.LowerBound = LowerBound;
     Binding.Size = Size;
   }
+  const ResourceBinding &getBinding() const { return Binding; }
   void setUAV(bool GloballyCoherent, bool HasCounter, bool IsROV) {
     assert(isUAV() && "Not a UAV");
     UAVFlags.GloballyCoherent = GloballyCoherent;
     UAVFlags.HasCounter = HasCounter;
     UAVFlags.IsROV = IsROV;
+  }
+  const UAVInfo &getUAV() const {
+    assert(isUAV() && "Not a UAV");
+    return UAVFlags;
   }
   void setCBuffer(uint32_t Size) {
     assert(isCBuffer() && "Not a CBuffer");
@@ -163,6 +168,10 @@ public:
     Typed.ElementTy = ElementTy;
     Typed.ElementCount = ElementCount;
   }
+  const TypedInfo &getTyped() const {
+    assert(isTyped() && "Not typed");
+    return Typed;
+  }
   void setFeedback(dxil::SamplerFeedbackType Type) {
     assert(isFeedback() && "Not Feedback");
     Feedback.Type = Type;
@@ -171,8 +180,14 @@ public:
     assert(isMultiSample() && "Not MultiSampled");
     MultiSample.Count = Count;
   }
+  const MSInfo &getMultiSample() const {
+    assert(isMultiSample() && "Not MultiSampled");
+    return MultiSample;
+  }
 
+  StringRef getName() const { return Name; }
   dxil::ResourceClass getResourceClass() const { return RC; }
+  dxil::ResourceKind getResourceKind() const { return Kind; }
 
   bool operator==(const ResourceInfo &RHS) const;
 
@@ -222,7 +237,6 @@ public:
 
   MDTuple *getAsMetadata(LLVMContext &Ctx) const;
 
-  ResourceBinding getBinding() const { return Binding; }
   std::pair<uint32_t, uint32_t> getAnnotateProps() const;
 
   void print(raw_ostream &OS) const;

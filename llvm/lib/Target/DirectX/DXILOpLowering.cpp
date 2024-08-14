@@ -173,7 +173,7 @@ public:
       IRB.SetInsertPoint(CI);
 
       dxil::ResourceInfo &RI = DRM[CI];
-      dxil::ResourceInfo::ResourceBinding Binding = RI.getBinding();
+      const auto &Binding = RI.getBinding();
 
       std::array<Value *, 4> Args{
           ConstantInt::get(Int8Ty, llvm::to_underlying(RI.getResourceClass())),
@@ -199,7 +199,7 @@ public:
       IRB.SetInsertPoint(CI);
 
       dxil::ResourceInfo &RI = DRM[CI];
-      dxil::ResourceInfo::ResourceBinding Binding = RI.getBinding();
+      const auto &Binding = RI.getBinding();
       std::pair<uint32_t, uint32_t> Props = RI.getAnnotateProps();
 
       Constant *ResBind = OpBuilder.getResBind(
