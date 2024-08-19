@@ -1907,6 +1907,12 @@ void TypePrinter::printAttributedAfter(const AttributedType *T,
     return;
   }
 
+  if (T->getAttrKind() == attr::HLSLContainedType) {
+    // FIXME: print the attribute arguments.
+    OS << " [[hlsl::contained_type(...)]]";
+    return;
+  }
+
   if (T->getAttrKind() == attr::ArmStreaming) {
     OS << "__arm_streaming";
     return;
@@ -1970,6 +1976,7 @@ void TypePrinter::printAttributedAfter(const AttributedType *T,
   case attr::NonAllocating:
   case attr::Blocking:
   case attr::Allocating:
+  case attr::HLSLContainedType:
     llvm_unreachable("This attribute should have been handled already");
 
   case attr::NSReturnsRetained:

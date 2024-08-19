@@ -356,7 +356,7 @@ static bool isLegalTypeForHLSLSV_DispatchThreadID(QualType T) {
   return true;
 }
 
-void SemaHLSL::handleSV_DispatchThreadIDAttr(Decl *D, const ParsedAttr &AL) {  
+void SemaHLSL::handleSV_DispatchThreadIDAttr(Decl *D, const ParsedAttr &AL) {
   auto *VD = cast<ValueDecl>(D);
   if (!isLegalTypeForHLSLSV_DispatchThreadID(VD->getType())) {
     Diag(AL.getLoc(), diag::err_hlsl_attr_invalid_type)
@@ -536,6 +536,22 @@ void SemaHLSL::handleParamModifierAttr(Decl *D, const ParsedAttr &AL) {
       static_cast<HLSLParamModifierAttr::Spelling>(AL.getSemanticSpelling()));
   if (NewAttr)
     D->addAttr(NewAttr);
+}
+
+HLSLContainedTypeAttr *SemaHLSL::createContainedTypeAttr(const ParsedAttr &PA) {
+  if (!PA.hasParsedType()) {
+    Diag(PA.getLoc(), diag::err_attribute_wrong_number_arguments) << PA << 1;
+    return nullptr;
+  }
+
+  TypeSourceInfo *TSI = nullptr;
+  QualType QT = SemaRef.GetTypeFromParser(PA.getTypeArg(), &TSI);
+  assert(TSI && "no type source info for attribute argument");
+  if (SemaRef.RequireCompleteType(TSI->getTypeLoc().getBeginLoc(), QT,
+                                  diag::err_incomplete_type))
+    return nullptr;
+
+  return HLSLContainedTypeAttr::Create(getASTContext(), TSI, PA.getLoc());
 }
 
 namespace {

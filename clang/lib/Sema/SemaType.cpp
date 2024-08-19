@@ -37,6 +37,7 @@
 #include "clang/Sema/ParsedTemplate.h"
 #include "clang/Sema/ScopeInfo.h"
 #include "clang/Sema/SemaCUDA.h"
+#include "clang/Sema/SemaHLSL.h"
 #include "clang/Sema/SemaInternal.h"
 #include "clang/Sema/SemaObjC.h"
 #include "clang/Sema/SemaOpenMP.h"
@@ -8503,6 +8504,13 @@ static void HandleLifetimeBoundAttr(TypeProcessingState &State,
   }
 }
 
+static void HandleHLSLContainedTypeAttr(TypeProcessingState &State,
+                                        QualType &CurType, ParsedAttr &Attr) {
+  if (auto *ContainedTypeAttr =
+          State.getSema().HLSL().createContainedTypeAttr(Attr))
+    CurType = State.getAttributedType(ContainedTypeAttr, CurType, CurType);
+}
+
 static void HandleHLSLParamModifierAttr(QualType &CurType,
                                         const ParsedAttr &Attr, Sema &S) {
   // Don't apply this attribute to template dependent types. It is applied on
@@ -8689,6 +8697,11 @@ static void processTypeAttrs(TypeProcessingState &state, QualType &type,
         attr.setUsedAsTypeAttr();
       break;
     }
+
+    case ParsedAttr::AT_HLSLContainedType:
+      HandleHLSLContainedTypeAttr(state, type, attr);
+      attr.setUsedAsTypeAttr();
+    break;
 
     case ParsedAttr::AT_HLSLParamModifier: {
       HandleHLSLParamModifierAttr(type, attr, state.getSema());

@@ -3679,6 +3679,7 @@ void Parser::ParseDeclarationSpecifiers(
           if (PA.isTypeAttr() && PA.getKind() != ParsedAttr::AT_LifetimeBound &&
               PA.getKind() != ParsedAttr::AT_AnyX86NoCfCheck)
             continue;
+
           Diag(PA.getLoc(), diag::err_attribute_not_type_attr)
               << PA << PA.isRegularKeywordAttribute();
           PA.setInvalid();
