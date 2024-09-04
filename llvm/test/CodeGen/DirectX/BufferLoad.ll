@@ -61,6 +61,34 @@ define void @loadv4f32() {
   ret void
 }
 
+define void @index_dynamic(i32 %bufindex, i32 %elemindex) {
+  ; CHECK: [[BIND:%.*]] = call %dx.types.Handle @dx.op.createHandleFromBinding
+  ; CHECK: [[HANDLE:%.*]] = call %dx.types.Handle @dx.op.annotateHandle(i32 217, %dx.types.Handle [[BIND]]
+  %buffer = call target("dx.TypedBuffer", <4 x float>, 0, 0, 0)
+      @llvm.dx.handle.fromBinding.tdx.TypedBuffer_v4f32_0_0_0(
+          i32 0, i32 0, i32 1, i32 0, i1 false)
+
+  ; CHECK: [[LOAD:%.*]] = call %dx.types.ResRet.f32 @dx.op.bufferLoad.f32(i32 68, %dx.types.Handle [[HANDLE]], i32 %bufindex, i32 undef)
+  %load = call <4 x float> @llvm.dx.typedBufferLoad(
+      target("dx.TypedBuffer", <4 x float>, 0, 0, 0) %buffer, i32 %bufindex)
+
+  ; CHECK: [[V0:%.*]] = extractvalue %dx.types.ResRet.f32 [[LOAD]], 0
+  ; CHECK: [[V1:%.*]] = extractvalue %dx.types.ResRet.f32 [[LOAD]], 1
+  ; CHECK: [[V2:%.*]] = extractvalue %dx.types.ResRet.f32 [[LOAD]], 2
+  ; CHECK: [[V3:%.*]] = extractvalue %dx.types.ResRet.f32 [[LOAD]], 3
+  ; CHECK: [[VEC0:%.*]] = insertelement <4 x float> undef, float [[V0]], i64 0
+  ; CHECK: [[VEC1:%.*]] = insertelement <4 x float> [[VEC0]], float [[V1]], i64 1
+  ; CHECK: [[VEC2:%.*]] = insertelement <4 x float> [[VEC1]], float [[V2]], i64 2
+  ; CHECK: [[VEC3:%.*]] = insertelement <4 x float> [[VEC2]], float [[V3]], i64 3
+  ; CHECK: [[X:%.*]] = extractelement <4 x float> [[VEC3]], i32 %elemindex
+  %data = extractelement <4 x float> %load, i32 %elemindex
+
+  ; CHECK: call void @scalar_user(float [[X]])
+  call void @scalar_user(float %data)
+
+  ret void
+}
+
 define void @loadf32() {
   ; CHECK: [[BIND:%.*]] = call %dx.types.Handle @dx.op.createHandleFromBinding
   ; CHECK: [[HANDLE:%.*]] = call %dx.types.Handle @dx.op.annotateHandle(i32 217, %dx.types.Handle [[BIND]]
