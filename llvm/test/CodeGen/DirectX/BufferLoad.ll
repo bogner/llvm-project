@@ -72,15 +72,21 @@ define void @index_dynamic(i32 %bufindex, i32 %elemindex) {
   %load = call <4 x float> @llvm.dx.typedBufferLoad(
       target("dx.TypedBuffer", <4 x float>, 0, 0, 0) %buffer, i32 %bufindex)
 
+  ; CHECK: [[ALLOCA:%.*]] = alloca [4 x float]
   ; CHECK: [[V0:%.*]] = extractvalue %dx.types.ResRet.f32 [[LOAD]], 0
   ; CHECK: [[V1:%.*]] = extractvalue %dx.types.ResRet.f32 [[LOAD]], 1
   ; CHECK: [[V2:%.*]] = extractvalue %dx.types.ResRet.f32 [[LOAD]], 2
   ; CHECK: [[V3:%.*]] = extractvalue %dx.types.ResRet.f32 [[LOAD]], 3
-  ; CHECK: [[VEC0:%.*]] = insertelement <4 x float> undef, float [[V0]], i64 0
-  ; CHECK: [[VEC1:%.*]] = insertelement <4 x float> [[VEC0]], float [[V1]], i64 1
-  ; CHECK: [[VEC2:%.*]] = insertelement <4 x float> [[VEC1]], float [[V2]], i64 2
-  ; CHECK: [[VEC3:%.*]] = insertelement <4 x float> [[VEC2]], float [[V3]], i64 3
-  ; CHECK: [[X:%.*]] = extractelement <4 x float> [[VEC3]], i32 %elemindex
+  ; CHECK: [[A0:%.*]] = getelementptr inbounds [4 x float], [4 x float]* [[ALLOCA]], i32 0, i32 0
+  ; CHECK: store float [[V0]], float* [[A0]]
+  ; CHECK: [[A1:%.*]] = getelementptr inbounds [4 x float], [4 x float]* [[ALLOCA]], i32 0, i32 1
+  ; CHECK: store float [[V1]], float* [[A1]]
+  ; CHECK: [[A2:%.*]] = getelementptr inbounds [4 x float], [4 x float]* [[ALLOCA]], i32 0, i32 0
+  ; CHECK: store float [[V2]], float* [[A2]]
+  ; CHECK: [[A3:%.*]] = getelementptr inbounds [4 x float], [4 x float]* [[ALLOCA]], i32 0, i32 0
+  ; CHECK: store float [[V3]], float* [[A3]]
+  ; CHECK: [[PTR:%.*]] = getelementptr inbounds [4 x float], [4 x float]* [[ALLOCA]], i32 0, i32 %bufindex
+  ; CHECK: [[X:%.*]] = load float, float* [[PTR]]
   %data = extractelement <4 x float> %load, i32 %elemindex
 
   ; CHECK: call void @scalar_user(float [[X]])
