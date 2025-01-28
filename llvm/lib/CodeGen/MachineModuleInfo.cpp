@@ -52,6 +52,7 @@ MachineModuleInfo::MachineModuleInfo(const TargetMachine *TM)
     : TM(*TM), Context(TM->getTargetTriple(), TM->getMCAsmInfo(),
                        TM->getMCRegisterInfo(), TM->getMCSubtargetInfo(),
                        nullptr, &TM->Options.MCOptions, false) {
+  assert(TM);
   Context.setObjectFileInfo(TM->getObjFileLowering());
   initialize();
 }
