@@ -3,7 +3,7 @@
 target triple = "dxil-unknown-shadermodel6.0-compute"
 
 
-define void @main() {
+define void @main() #0 {
 entry:
   ret void
 }

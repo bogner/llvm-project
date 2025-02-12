@@ -26,8 +26,6 @@ enum class RootSignatureElementKind { None = 0, RootFlags = 1 };
 
 struct ModuleRootSignature {
   uint32_t Flags = 0;
-  static std::optional<ModuleRootSignature> analyzeModule(Module &M,
-                                                          const Function *F);
 };
 
 class RootSignatureAnalysis : public AnalysisInfoMixin<RootSignatureAnalysis> {
@@ -40,6 +38,16 @@ public:
   using Result = std::optional<ModuleRootSignature>;
 
   std::optional<ModuleRootSignature> run(Module &M, ModuleAnalysisManager &AM);
+};
+
+/// Printer pass for RootSignatureAnalysis results.
+class RootSignatureAnalysisPrinter
+    : public PassInfoMixin<RootSignatureAnalysisPrinter> {
+  raw_ostream &OS;
+
+public:
+  explicit RootSignatureAnalysisPrinter(raw_ostream &OS) : OS(OS) {}
+  PreservedAnalyses run(Module &M, ModuleAnalysisManager &AM);
 };
 
 /// Wrapper pass for the legacy pass manager.
