@@ -785,7 +785,7 @@ public:
         continue;
       Intrinsic::ID ID = F.getIntrinsicID();
       switch (ID) {
-      default:
+      case Intrinsic::not_intrinsic:
         continue;
 #define DXIL_OP_INTRINSIC(OpCode, Intrin, ...)                                 \
   case Intrin:                                                                 \
@@ -796,6 +796,9 @@ public:
       case Intrinsic::dx_resource_handlefrombinding:
         HasErrors |= lowerHandleFromBinding(F);
         break;
+      case Intrinsic::dx_resource_casthandle:
+        // These will be cleaned up at the end.
+        continue;
       case Intrinsic::dx_resource_getpointer:
         HasErrors |= lowerGetPointer(F);
         break;
@@ -827,7 +830,14 @@ public:
       case Intrinsic::ctpop:
         HasErrors |= lowerCtpopToCountBits(F);
         break;
+      default:
+        HasErrors = true;
+        DiagnosticInfoUnsupported Diag(F, Twine("Unknown intrinsic: ") +
+                                              F.getName());
+        M.getContext().diagnose(Diag);
+        break;
       }
+
       Updated = true;
     }
     if (Updated && !HasErrors)
