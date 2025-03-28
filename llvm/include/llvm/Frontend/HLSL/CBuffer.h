@@ -13,9 +13,50 @@
 #ifndef LLVM_FRONTEND_HLSL_CBUFFER_H
 #define LLVM_FRONTEND_HLSL_CBUFFER_H
 
+#include "llvm/ADT/SmallVector.h"
+#include "llvm/IR/DataLayout.h"
+#include "llvm/IR/DerivedTypes.h"
+#include <optional>
+
 namespace llvm {
+class Module;
+class GlobalVariable;
+class NamedMDNode;
 
 namespace hlsl {
+
+struct CBufferMember {
+  CBufferMember(GlobalVariable *GV, size_t Offset) : GV(GV), Offset(Offset) {}
+
+  GlobalVariable *GV;
+  size_t Offset;
+};
+
+struct CBufferMapping {
+  CBufferMapping(GlobalVariable *Handle) : Handle(Handle) {}
+
+  GlobalVariable *Handle;
+  SmallVector<CBufferMember> Members;
+};
+
+class CBufferMetadata {
+  NamedMDNode *MD;
+  SmallVector<CBufferMapping> Mappings;
+
+  CBufferMetadata(NamedMDNode *MD) : MD(MD) {}
+
+public:
+  static std::optional<CBufferMetadata> get(Module &M);
+
+  using iterator = SmallVector<CBufferMapping>::iterator;
+  iterator begin() { return Mappings.begin(); }
+  iterator end() { return Mappings.end(); }
+
+  void eraseFromModule();
+};
+
+APInt translateCBufArrayOffset(const DataLayout &DL, APInt Offset,
+                               ArrayType *Ty);
 
 } // namespace hlsl
 } // namespace llvm
