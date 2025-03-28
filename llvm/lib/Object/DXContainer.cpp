@@ -8,10 +8,13 @@
 
 #include "llvm/Object/DXContainer.h"
 #include "llvm/BinaryFormat/DXContainer.h"
+#include "llvm/BinaryFormat/RootSignatureValidation.h"
 #include "llvm/Object/Error.h"
 #include "llvm/Support/Alignment.h"
 #include "llvm/Support/Endian.h"
+#include "llvm/Support/Error.h"
 #include "llvm/Support/FormatVariadic.h"
+#include <cstdint>
 
 using namespace llvm;
 using namespace llvm::object;
@@ -22,6 +25,18 @@ static Error parseFailed(const Twine &Msg) {
 
 static Error validationFailed(const Twine &Msg) {
   return make_error<StringError>(Msg.str(), inconvertibleErrorCode());
+}
+
+template <typename E> static Error safeConvertEnum(uint32_t Value, E &Result) {
+  static_assert(std::is_enum_v<E>, "Template must be an enum type");
+
+  if (Value >= 0 && Value < static_cast<int>(E::Empty)) {
+    Result = static_cast<E>(Value);
+    return Error::success();
+  }
+
+  // Throw an exception if the value is out of range
+  return parseFailed("Value is not within range for enum");
 }
 
 template <typename T>
@@ -247,6 +262,7 @@ void DXContainer::PartIterator::updateIteratorImpl(const uint32_t Offset) {
 }
 
 Error DirectX::RootSignature::parse(StringRef Data) {
+  const char *Begin = Data.begin();
   const char *Current = Data.begin();
 
   // Root Signature headers expects 6 integers to be present.
@@ -288,6 +304,27 @@ Error DirectX::RootSignature::parse(StringRef Data) {
                             llvm::Twine(FValue));
   Flags = FValue;
 
+  assert(Current == Begin + RootParametersOffset);
+
+  Parameters.HeaderView.Data = Data.substr(
+      RootParametersOffset, NumParameters * sizeof(dxbc::RootParameterHeader));
+  Parameters.Data = Data;
+
+  for (auto P : params()) {
+    if (!P)
+      return P.takeError();
+
+    if (!dxbc::RootSignatureValidations::isValidParameterType(
+            P->Header.ParameterType))
+      return validationFailed("unsupported parameter type value read: " +
+                              llvm::Twine((uint32_t)P->Header.ParameterType));
+
+    if (!dxbc::RootSignatureValidations::isValidShaderVisibility(
+            P->Header.ShaderVisibility))
+      return validationFailed(
+          "unsupported shader visility flag value read: " +
+          llvm::Twine((uint32_t)P->Header.ShaderVisibility));
+  }
   return Error::success();
 }
 
