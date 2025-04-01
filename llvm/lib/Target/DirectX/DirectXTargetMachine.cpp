@@ -15,6 +15,7 @@
 #include "DXILCBufferAccess.h"
 #include "DXILDataScalarization.h"
 #include "DXILFlattenArrays.h"
+#include "DXILForwardHandleAccesses.h"
 #include "DXILIntrinsicExpansion.h"
 #include "DXILLegalizePass.h"
 #include "DXILOpLowering.h"
@@ -66,6 +67,7 @@ extern "C" LLVM_EXTERNAL_VISIBILITY void LLVMInitializeDirectXTarget() {
   initializeRootSignatureAnalysisWrapperPass(*PR);
   initializeDXILFinalizeLinkageLegacyPass(*PR);
   initializeDXILCBufferAccessLegacyPass(*PR);
+  initializeDXILForwardHandleAccessesLegacyPass(*PR);
 }
 
 class DXILTargetObjectFile : public TargetLoweringObjectFile {
@@ -106,6 +108,7 @@ public:
     addPass(createScalarizerPass(DxilScalarOptions));
     addPass(createDXILLegalizeLegacyPass());
     addPass(createDXILTranslateMetadataLegacyPass());
+    addPass(createDXILForwardHandleAccessesLegacyPass());
     addPass(createDXILOpLoweringLegacyPass());
     addPass(createDXILPrepareModulePass());
   }

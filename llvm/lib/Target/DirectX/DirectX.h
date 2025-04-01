@@ -35,6 +35,12 @@ void initializeDXILIntrinsicExpansionLegacyPass(PassRegistry &);
 /// Pass to expand intrinsic operations that lack DXIL opCodes
 ModulePass *createDXILIntrinsicExpansionLegacyPass();
 
+/// Initializer for DXIL Forward Handle Accesses Pass
+void initializeDXILForwardHandleAccessesLegacyPass(PassRegistry &);
+
+/// Pass to eliminate redundant stores and loads from handle globals.
+ModulePass *createDXILForwardHandleAccessesLegacyPass();
+
 /// Initializer for DXIL CBuffer Access Pass
 void initializeDXILCBufferAccessLegacyPass(PassRegistry &);
 
