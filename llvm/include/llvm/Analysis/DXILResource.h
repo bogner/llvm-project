@@ -441,8 +441,10 @@ ModulePass *createDXILResourceTypeWrapperPassPass();
 //===----------------------------------------------------------------------===//
 
 class DXILBindingMap {
+  using CallMapTy = DenseMap<CallInst *, unsigned>;
+
   SmallVector<dxil::ResourceBindingInfo> Infos;
-  DenseMap<CallInst *, unsigned> CallMap;
+  CallMapTy CallMap;
   unsigned FirstUAV = 0;
   unsigned FirstCBuffer = 0;
   unsigned FirstSampler = 0;
@@ -516,6 +518,21 @@ public:
   }
   iterator_range<const_iterator> samplers() const {
     return make_range(sampler_begin(), sampler_end());
+  }
+
+  struct call_iterator
+      : iterator_adaptor_base<call_iterator, CallMapTy::iterator> {
+    call_iterator() = default;
+    call_iterator(CallMapTy::iterator Iter)
+        : call_iterator::iterator_adaptor_base(std::move(Iter)) {}
+
+    CallInst *operator*() const { return I->first; }
+  };
+
+  call_iterator call_begin() { return call_iterator(CallMap.begin()); }
+  call_iterator call_end() { return call_iterator(CallMap.end()); }
+  iterator_range<call_iterator> calls() {
+    return make_range(call_begin(), call_end());
   }
 
   void print(raw_ostream &OS, DXILResourceTypeMap &DRTM,
