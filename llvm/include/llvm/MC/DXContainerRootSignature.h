@@ -20,13 +20,18 @@ class raw_ostream;
 namespace mcdxbc {
 
 struct RootParameterInfo {
-  dxbc::RTS0::v1::RootParameterHeader Header;
+  dxbc::RootParameterType Type;
+  dxbc::ShaderVisibility Visibility;
+  uint32_t Offset;
   size_t Location;
 
   RootParameterInfo() = default;
 
-  RootParameterInfo(dxbc::RTS0::v1::RootParameterHeader Header, size_t Location)
-      : Header(Header), Location(Location) {}
+  RootParameterInfo(dxbc::RootParameterType Type,
+                    dxbc::ShaderVisibility Visibility, uint32_t Offset,
+                    size_t Location)
+      : Type(Type), Visibility(Visibility), Offset(Offset), Location(Location) {
+  }
 };
 
 struct DescriptorTable {
@@ -46,41 +51,34 @@ struct RootParametersContainer {
   SmallVector<dxbc::RTS0::v2::RootDescriptor> Descriptors;
   SmallVector<DescriptorTable> Tables;
 
-  void addInfo(dxbc::RTS0::v1::RootParameterHeader Header, size_t Location) {
-    ParametersInfo.push_back(RootParameterInfo(Header, Location));
+  void addInfo(dxbc::RootParameterType Type, dxbc::ShaderVisibility Visibility,
+               uint32_t Offset, size_t Location) {
+    ParametersInfo.emplace_back(Type, Visibility, Offset, Location);
   }
 
-  void addParameter(dxbc::RTS0::v1::RootParameterHeader Header,
+  void addParameter(dxbc::RootParameterType Type,
+                    dxbc::ShaderVisibility Visibility, uint32_t Offset,
                     dxbc::RTS0::v1::RootConstants Constant) {
-    addInfo(Header, Constants.size());
+    ParametersInfo.emplace_back(Type, Visibility, Offset, Constants.size());
     Constants.push_back(Constant);
   }
 
-  void addInvalidParameter(dxbc::RTS0::v1::RootParameterHeader Header) {
-    addInfo(Header, -1);
-  }
-
-  void addParameter(dxbc::RTS0::v1::RootParameterHeader Header,
+  void addParameter(dxbc::RootParameterType Type,
+                    dxbc::ShaderVisibility Visibility, uint32_t Offset,
                     dxbc::RTS0::v2::RootDescriptor Descriptor) {
-    addInfo(Header, Descriptors.size());
+    ParametersInfo.emplace_back(Type, Visibility, Offset, Descriptors.size());
     Descriptors.push_back(Descriptor);
   }
 
-  void addParameter(dxbc::RTS0::v1::RootParameterHeader Header,
+  void addParameter(dxbc::RootParameterType Type,
+                    dxbc::ShaderVisibility Visibility, uint32_t Offset,
                     DescriptorTable Table) {
-    addInfo(Header, Tables.size());
+    ParametersInfo.emplace_back(Type, Visibility, Offset, Tables.size());
     Tables.push_back(Table);
   }
 
-  std::pair<uint32_t, uint32_t>
-  getTypeAndLocForParameter(uint32_t Location) const {
-    const RootParameterInfo &Info = ParametersInfo[Location];
-    return {Info.Header.ParameterType, Info.Location};
-  }
-
-  const dxbc::RTS0::v1::RootParameterHeader &getHeader(size_t Location) const {
-    const RootParameterInfo &Info = ParametersInfo[Location];
-    return Info.Header;
+  const RootParameterInfo &getInfo(uint32_t Location) const {
+    return ParametersInfo[Location];
   }
 
   const dxbc::RTS0::v1::RootConstants &getConstant(size_t Index) const {

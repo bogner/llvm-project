@@ -111,12 +111,9 @@ struct DescriptorTableYaml {
 };
 
 struct RootParameterHeaderYaml {
-  uint32_t Type;
-  uint32_t Visibility;
+  dxbc::RootParameterType Type;
+  dxbc::ShaderVisibility Visibility;
   uint32_t Offset;
-
-  RootParameterHeaderYaml(){};
-  RootParameterHeaderYaml(uint32_t T) : Type(T) {}
 };
 
 struct RootParameterLocationYaml {
@@ -313,6 +310,8 @@ LLVM_YAML_IS_SEQUENCE_VECTOR(llvm::DXContainerYAML::SignatureParameter)
 LLVM_YAML_IS_SEQUENCE_VECTOR(llvm::DXContainerYAML::RootParameterLocationYaml)
 LLVM_YAML_IS_SEQUENCE_VECTOR(llvm::DXContainerYAML::DescriptorRangeYaml)
 LLVM_YAML_IS_SEQUENCE_VECTOR(llvm::DXContainerYAML::StaticSamplerYamlDesc)
+LLVM_YAML_DECLARE_ENUM_TRAITS(llvm::dxbc::RootParameterType)
+LLVM_YAML_DECLARE_ENUM_TRAITS(llvm::dxbc::ShaderVisibility)
 LLVM_YAML_DECLARE_ENUM_TRAITS(llvm::dxbc::PSV::SemanticKind)
 LLVM_YAML_DECLARE_ENUM_TRAITS(llvm::dxbc::PSV::ComponentType)
 LLVM_YAML_DECLARE_ENUM_TRAITS(llvm::dxbc::PSV::InterpolationMode)

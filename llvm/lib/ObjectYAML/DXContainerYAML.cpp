@@ -93,16 +93,13 @@ DXContainerYAML::RootSignatureYamlDesc::create(
     if (!dxbc::isValidParameterType(PH.ParameterType))
       return createStringError(std::errc::invalid_argument,
                                "Invalid value for parameter type");
-
-    RootParameterHeaderYaml Header(PH.ParameterType);
-    Header.Offset = PH.ParameterOffset;
-    Header.Type = PH.ParameterType;
-
     if (!dxbc::isValidShaderVisibility(PH.ShaderVisibility))
       return createStringError(std::errc::invalid_argument,
                                "Invalid value for shader visibility");
 
-    Header.Visibility = PH.ShaderVisibility;
+    RootParameterHeaderYaml Header{dxbc::RootParameterType(PH.ParameterType),
+                                   dxbc::ShaderVisibility(PH.ShaderVisibility),
+                                   PH.ParameterOffset};
 
     llvm::Expected<object::DirectX::RootParameterView> ParamViewOrErr =
         Data.getParameter(PH);
@@ -417,6 +414,18 @@ void MappingTraits<llvm::DXContainerYAML::DescriptorTableYaml>::mapping(
   IO.mapRequired("Ranges", T.Ranges);
 }
 
+void ScalarEnumerationTraits<dxbc::RootParameterType>::enumeration(
+    IO &IO, dxbc::RootParameterType &Value) {
+  for (const auto &E : dxbc::getRootParameterTypes())
+    IO.enumCase(Value, E.Name.str().c_str(), E.Value);
+}
+
+void ScalarEnumerationTraits<dxbc::ShaderVisibility>::enumeration(
+    IO &IO, dxbc::ShaderVisibility &Value) {
+  for (const auto &E : dxbc::getShaderVisibility())
+    IO.enumCase(Value, E.Name.str().c_str(), E.Value);
+}
+
 void MappingContextTraits<DXContainerYAML::RootParameterLocationYaml,
                           DXContainerYAML::RootSignatureYamlDesc>::
     mapping(IO &IO, DXContainerYAML::RootParameterLocationYaml &L,
@@ -425,21 +434,21 @@ void MappingContextTraits<DXContainerYAML::RootParameterLocationYaml,
   IO.mapRequired("ShaderVisibility", L.Header.Visibility);
 
   switch (L.Header.Type) {
-  case llvm::to_underlying(dxbc::RootParameterType::Constants32Bit): {
+  case dxbc::RootParameterType::Constants32Bit: {
     DXContainerYAML::RootConstantsYaml &Constants =
         S.Parameters.getOrInsertConstants(L);
     IO.mapRequired("Constants", Constants);
     break;
   }
-  case llvm::to_underlying(dxbc::RootParameterType::CBV):
-  case llvm::to_underlying(dxbc::RootParameterType::SRV):
-  case llvm::to_underlying(dxbc::RootParameterType::UAV): {
+  case dxbc::RootParameterType::CBV:
+  case dxbc::RootParameterType::SRV:
+  case dxbc::RootParameterType::UAV: {
     DXContainerYAML::RootDescriptorYaml &Descriptor =
         S.Parameters.getOrInsertDescriptor(L);
     IO.mapRequired("Descriptor", Descriptor);
     break;
   }
-  case llvm::to_underlying(dxbc::RootParameterType::DescriptorTable): {
+  case dxbc::RootParameterType::DescriptorTable: {
     DXContainerYAML::DescriptorTableYaml &Table =
         S.Parameters.getOrInsertTable(L);
     IO.mapRequired("Table", Table);

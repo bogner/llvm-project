@@ -170,38 +170,33 @@ PreservedAnalyses RootSignatureAnalysisPrinter::run(Module &M,
        << "Version: " << RS.Version << "\n"
        << "RootParametersOffset: " << RS.RootParameterOffset << "\n"
        << "NumParameters: " << RS.ParametersContainer.size() << "\n";
-    for (size_t I = 0; I < RS.ParametersContainer.size(); I++) {
-      const auto &[Type, Loc] =
-          RS.ParametersContainer.getTypeAndLocForParameter(I);
-      const dxbc::RTS0::v1::RootParameterHeader Header =
-          RS.ParametersContainer.getHeader(I);
+    for (const mcdxbc::RootParameterInfo &Info : RS.ParametersContainer) {
+      OS << "- Parameter Type: " << Info.Type << "\n"
+         << "  Shader Visibility: " << Info.Visibility << "\n";
 
-      OS << "- Parameter Type: " << Type << "\n"
-         << "  Shader Visibility: " << Header.ShaderVisibility << "\n";
-
-      switch (Type) {
-      case llvm::to_underlying(dxbc::RootParameterType::Constants32Bit): {
+      switch (Info.Type) {
+      case dxbc::RootParameterType::Constants32Bit: {
         const dxbc::RTS0::v1::RootConstants &Constants =
-            RS.ParametersContainer.getConstant(Loc);
+            RS.ParametersContainer.getConstant(Info.Location);
         OS << "  Register Space: " << Constants.RegisterSpace << "\n"
            << "  Shader Register: " << Constants.ShaderRegister << "\n"
            << "  Num 32 Bit Values: " << Constants.Num32BitValues << "\n";
         break;
       }
-      case llvm::to_underlying(dxbc::RootParameterType::CBV):
-      case llvm::to_underlying(dxbc::RootParameterType::UAV):
-      case llvm::to_underlying(dxbc::RootParameterType::SRV): {
+      case dxbc::RootParameterType::CBV:
+      case dxbc::RootParameterType::UAV:
+      case dxbc::RootParameterType::SRV: {
         const dxbc::RTS0::v2::RootDescriptor &Descriptor =
-            RS.ParametersContainer.getRootDescriptor(Loc);
+            RS.ParametersContainer.getRootDescriptor(Info.Location);
         OS << "  Register Space: " << Descriptor.RegisterSpace << "\n"
            << "  Shader Register: " << Descriptor.ShaderRegister << "\n";
         if (RS.Version > 1)
           OS << "  Flags: " << Descriptor.Flags << "\n";
         break;
       }
-      case llvm::to_underlying(dxbc::RootParameterType::DescriptorTable): {
+      case dxbc::RootParameterType::DescriptorTable: {
         const mcdxbc::DescriptorTable &Table =
-            RS.ParametersContainer.getDescriptorTable(Loc);
+            RS.ParametersContainer.getDescriptorTable(Info.Location);
         OS << "  NumRanges: " << Table.Ranges.size() << "\n";
 
         for (const dxbc::RTS0::v2::DescriptorRange Range : Table) {
