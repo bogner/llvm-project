@@ -13,6 +13,7 @@
 #ifndef LLVM_FRONTEND_HLSL_HLSLBINDING_H
 #define LLVM_FRONTEND_HLSL_HLSLBINDING_H
 
+#include "llvm/ADT/STLExtras.h"
 #include "llvm/ADT/STLFunctionalExtras.h"
 #include "llvm/ADT/SmallVector.h"
 #include "llvm/Support/Compiler.h"
@@ -150,6 +151,17 @@ public:
     HasOverlap = false;
     return calculateBindingInfo(
         [&HasOverlap](auto, auto) { HasOverlap = true; });
+  }
+
+  bool isBound(dxil::ResourceClass RC, uint32_t Space, uint32_t LowerBound,
+               uint32_t UpperBound) const {
+    auto It =
+        llvm::upper_bound(Bindings, Binding{RC, Space, LowerBound, 0, nullptr});
+    if (It == Bindings.begin())
+      return false;
+    --It;
+    return It->RC == RC && It->Space == Space && It->LowerBound <= LowerBound &&
+           It->UpperBound >= UpperBound;
   }
 
   /// For use in the \c ReportOverlap callback of \c calculateBindingInfo -
