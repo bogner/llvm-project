@@ -66,6 +66,9 @@ HLSLBufferLayoutBuilder::layOutStruct(const RecordType *RT,
     CharUnits Size =
         CharUnits::fromQuantity(DL.getTypeSizeInBits(LayoutType) / 8);
     CharUnits Align = CharUnits::fromQuantity(DL.getABITypeAlign(LayoutType));
+    // HACK
+    if (auto *VT = dyn_cast<llvm::VectorType>(LayoutType))
+      Align = CharUnits::fromQuantity(DL.getABITypeAlign(VT->getElementType()));
 
     if (LayoutType->isAggregateType() ||
         (CurrentOffset % CBufferRowSize) + Size > CBufferRowSize)
