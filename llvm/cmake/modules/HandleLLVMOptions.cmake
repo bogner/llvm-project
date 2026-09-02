@@ -1010,7 +1010,7 @@ if (NOT LLVM_ENABLE_WARNING_SUPPRESSIONS AND (LLVM_COMPILER_IS_GCC_COMPATIBLE OR
 endif()
 
 macro(append_common_sanitizer_flags)
-  if (NOT MSVC OR CLANG_CL)
+  if (NOT (MSVC OR CLANG_CL))
     # Append -fno-omit-frame-pointer and turn on debug info to get better
     # stack traces.
     append("-fno-omit-frame-pointer" CMAKE_C_FLAGS CMAKE_CXX_FLAGS)
