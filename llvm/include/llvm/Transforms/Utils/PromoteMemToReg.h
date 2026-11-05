@@ -22,12 +22,13 @@ template <typename T> class ArrayRef;
 class AllocaInst;
 class DominatorTree;
 class AssumptionCache;
+class StructuredAllocaInst;
 
 /// Return true if this alloca is legal for promotion.
 ///
 /// This is true if there are only loads, stores, and lifetime markers
 /// using this alloca.
-LLVM_ABI bool isAllocaPromotable(const AllocaInst *AI);
+LLVM_ABI bool isAllocaPromotable(const Instruction *AI);
 
 /// Promote the specified list of alloca instructions into scalar
 /// registers, inserting PHI nodes as appropriate.
@@ -36,8 +37,8 @@ LLVM_ABI bool isAllocaPromotable(const AllocaInst *AI);
 /// does not modify the CFG of the function at all.  All allocas must be from
 /// the same function.
 ///
-LLVM_ABI void PromoteMemToReg(ArrayRef<AllocaInst *> Allocas, DominatorTree &DT,
-                              AssumptionCache *AC = nullptr);
+LLVM_ABI void PromoteMemToReg(ArrayRef<Instruction *> Allocas,
+                              DominatorTree &DT, AssumptionCache *AC = nullptr);
 
 } // End llvm namespace
 

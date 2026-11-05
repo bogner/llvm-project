@@ -1714,9 +1714,9 @@ static void eliminateSwiftErrorAlloca(Function &F, AllocaInst *Alloca,
 /// and then loading and storing in the prologue and epilog.
 ///
 /// The argument keeps the swifterror flag.
-static void eliminateSwiftErrorArgument(Function &F, Argument &Arg,
-                                        coro::Shape &Shape,
-                             SmallVectorImpl<AllocaInst*> &AllocasToPromote) {
+static void
+eliminateSwiftErrorArgument(Function &F, Argument &Arg, coro::Shape &Shape,
+                            SmallVectorImpl<Instruction *> &AllocasToPromote) {
   IRBuilder<> Builder(F.getEntryBlock().getFirstNonPHIOrPseudoProbe());
 
   auto ArgTy = cast<PointerType>(Arg.getType());
@@ -1752,7 +1752,7 @@ static void eliminateSwiftErrorArgument(Function &F, Argument &Arg,
 /// Eliminate all problematic uses of swifterror arguments and allocas
 /// from the function.  We'll fix them up later when splitting the function.
 static void eliminateSwiftError(Function &F, coro::Shape &Shape) {
-  SmallVector<AllocaInst*, 4> AllocasToPromote;
+  SmallVector<Instruction *, 4> AllocasToPromote;
 
   // Look for a swifterror argument.
   for (auto &Arg : F.args()) {

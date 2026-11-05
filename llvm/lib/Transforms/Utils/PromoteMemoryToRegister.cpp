@@ -63,7 +63,10 @@ STATISTIC(NumSingleStore,   "Number of alloca's promoted with a single store");
 STATISTIC(NumDeadAlloca,    "Number of dead alloca's removed");
 STATISTIC(NumPHIInsert,     "Number of PHI nodes inserted");
 
-bool llvm::isAllocaPromotable(const AllocaInst *AI) {
+bool llvm::isAllocaPromotable(const Instruction *AI) {
+  assert((isa<AllocaInst>(AI) || isa<StructuredAllocaInst>(AI)) &&
+         "Instruction is not an alloca");
+
   // Only allow direct and non-volatile loads and stores...
   // All loads and stores must use the same type (determined by the first one
   // seen). We don't require the type to match the alloca's declared type.
@@ -124,7 +127,7 @@ class AssignmentTrackingInfo {
   SmallVector<DbgVariableRecord *> DVRAssigns;
 
 public:
-  void init(AllocaInst *AI) {
+  void init(Instruction *AI) {
     SmallSet<DebugVariable, 2> Vars;
     for (DbgVariableRecord *DVR : at::getDVRAssignmentMarkers(AI)) {
       if (Vars.insert(DebugVariable(DVR)).second)
@@ -221,7 +224,7 @@ struct AllocaInfo {
 
   /// Scan the uses of the specified alloca, filling in the AllocaInfo used
   /// by the rest of the pass to reason about the uses of this alloca.
-  void AnalyzeAlloca(AllocaInst *AI) {
+  void AnalyzeAlloca(Instruction *AI) {
     clear();
 
     // As we scan the uses of the alloca instruction, keep track of stores,
@@ -332,8 +335,10 @@ public:
 
   /// This code only looks at accesses to allocas.
   static bool isInterestingInstruction(const Instruction *I) {
-    return (isa<LoadInst>(I) && isa<AllocaInst>(I->getOperand(0))) ||
-           (isa<StoreInst>(I) && isa<AllocaInst>(I->getOperand(1)));
+    return (isa<LoadInst>(I) &&
+            isa<AllocaInst, StructuredAllocaInst>(I->getOperand(0))) ||
+           (isa<StoreInst>(I) &&
+            isa<AllocaInst, StructuredAllocaInst>(I->getOperand(1)));
   }
 
   /// Get or calculate the index of the specified instruction.
@@ -367,7 +372,7 @@ public:
 
 struct PromoteMem2Reg {
   /// The alloca instructions being promoted.
-  std::vector<AllocaInst *> Allocas;
+  std::vector<Instruction *> Allocas;
 
   DominatorTree &DT;
   DIBuilder DIB;
@@ -378,7 +383,7 @@ struct PromoteMem2Reg {
   const SimplifyQuery SQ;
 
   /// Reverse mapping of Allocas.
-  DenseMap<AllocaInst *, unsigned> AllocaLookup;
+  DenseMap<Value *, unsigned> AllocaLookup;
 
   /// The PhiNodes we're adding.
   ///
@@ -431,12 +436,12 @@ struct PromoteMem2Reg {
   bool NoSignedZeros = false;
 
 public:
-  PromoteMem2Reg(ArrayRef<AllocaInst *> Allocas, DominatorTree &DT,
+  template <typename AllocaTy>
+  PromoteMem2Reg(ArrayRef<AllocaTy *> Allocas, DominatorTree &DT,
                  AssumptionCache *AC)
       : Allocas(Allocas.begin(), Allocas.end()), DT(DT),
         DIB(*DT.getRoot()->getParent()->getParent(), /*AllowUnresolved*/ false),
-        AC(AC), SQ(DT.getRoot()->getDataLayout(),
-                   nullptr, &DT, AC) {}
+        AC(AC), SQ(DT.getRoot()->getDataLayout(), nullptr, &DT, AC) {}
 
   void run();
 
@@ -455,7 +460,7 @@ private:
     return NP - 1;
   }
 
-  void ComputeLiveInBlocks(AllocaInst *AI, AllocaInfo &Info,
+  void ComputeLiveInBlocks(Instruction *AI, AllocaInfo &Info,
                            const SmallPtrSetImpl<BasicBlock *> &DefBlocks,
                            SmallPtrSetImpl<BasicBlock *> &LiveInBlocks);
   void collectDVRIndirectValuesAtStores();
@@ -519,7 +524,7 @@ static void convertMetadataToAssumes(LoadInst *LI, Value *Val,
     addAssumeNonNull(AC, LI);
 }
 
-static void removeIntrinsicUsers(AllocaInst *AI) {
+static void removeIntrinsicUsers(Instruction *AI) {
   // Knowing that this alloca is promotable, we know that it's safe to kill all
   // instructions except for load and store.
 
@@ -555,9 +560,12 @@ static void removeIntrinsicUsers(AllocaInst *AI) {
     if (PromotedType)
       if (auto *II = dyn_cast<IntrinsicInst>(I))
         if (II->isLifetimeStartOrEnd()) {
-          auto *Store = new StoreInst(UndefValue::get(PromotedType), AI,
-                                      /*isVolatile=*/false, AI->getAlign(),
-                                      I->getIterator());
+          // Structured allocas have no physical alignment in the IR.
+          Align Alignment =
+              isa<AllocaInst>(AI) ? cast<AllocaInst>(AI)->getAlign() : Align(1);
+          auto *Store =
+              new StoreInst(UndefValue::get(PromotedType), AI,
+                            /*isVolatile=*/false, Alignment, I->getIterator());
           Store->setDebugLoc(II->getDebugLoc());
         }
 
@@ -574,8 +582,8 @@ static void removeIntrinsicUsers(AllocaInst *AI) {
 /// and thus must be phi-ed with undef. We fall back to the standard alloca
 /// promotion algorithm in that case.
 static bool rewriteSingleStoreAlloca(
-    AllocaInst *AI, AllocaInfo &Info, LargeBlockInfo &LBI, const DataLayout &DL,
-    DominatorTree &DT, AssumptionCache *AC,
+    Instruction *AI, AllocaInfo &Info, LargeBlockInfo &LBI,
+    const DataLayout &DL, DominatorTree &DT, AssumptionCache *AC,
     SmallPtrSet<DbgVariableRecord *, 8> *DVRAssignsToDelete) {
   StoreInst *OnlyStore = Info.OnlyStore;
   Value *ReplVal = OnlyStore->getOperand(0);
@@ -687,7 +695,7 @@ static bool rewriteSingleStoreAlloca(
 ///    *A = 42;
 ///  }
 static bool promoteSingleBlockAlloca(
-    AllocaInst *AI, const AllocaInfo &Info, LargeBlockInfo &LBI,
+    Instruction *AI, const AllocaInfo &Info, LargeBlockInfo &LBI,
     const DataLayout &DL, DominatorTree &DT, AssumptionCache *AC,
     SmallPtrSet<DbgVariableRecord *, 8> *DVRAssignsToDelete,
     const DVRIndirectValuesAtStoreMap &DVRIndirectValuesAtStore,
@@ -836,7 +844,7 @@ void PromoteMem2Reg::collectDVRIndirectValuesAtStores() {
   // Any other kind is left to be poisoned.
   SmallPtrSet<DbgVariableRecord *, 8> DVRIndirectValues;
   SmallSetVector<BasicBlock *, 4> BlocksToProcess;
-  for (AllocaInst *AI : Allocas)
+  for (Instruction *AI : Allocas)
     for (DbgVariableRecord *DVR : findDVRValues(AI))
       if (DVR->isDbgValue() && DVR->getExpression()->startsWithDeref()) {
         DVRIndirectValues.insert(DVR);
@@ -906,8 +914,9 @@ void PromoteMem2Reg::run() {
   // LBI.getInstructionIndex lookup causes a full O(|BB|) basic block rescan.
   // Doing all inserts in advance lets us capture all the new instructions in
   // just a single rescan.
-  for (AllocaInst *AI : Allocas) {
-    assert(isAllocaPromotable(AI) && "Cannot promote non-promotable alloca!");
+  for (Instruction *AI : Allocas) {
+    assert(isAllocaPromotable(AI) &&
+           "Cannot promote non-promotable alloca!");
     assert(AI->getParent()->getParent() == &F &&
            "All allocas should be in the same function, which is same as DF!");
     removeIntrinsicUsers(AI);
@@ -916,7 +925,7 @@ void PromoteMem2Reg::run() {
   collectDVRIndirectValuesAtStores();
 
   for (unsigned AllocaNum = 0; AllocaNum != Allocas.size(); ++AllocaNum) {
-    AllocaInst *AI = Allocas[AllocaNum];
+    Instruction *AI = Allocas[AllocaNum];
 
     if (AI->use_empty()) {
       // If there are no uses of the alloca, just delete it now.
@@ -1137,7 +1146,7 @@ void PromoteMem2Reg::run() {
 /// inserting PHI nodes into blocks which don't lead to uses (thus, the
 /// inserted phi nodes would be dead).
 void PromoteMem2Reg::ComputeLiveInBlocks(
-    AllocaInst *AI, AllocaInfo &Info,
+    Instruction *AI, AllocaInfo &Info,
     const SmallPtrSetImpl<BasicBlock *> &DefBlocks,
     SmallPtrSetImpl<BasicBlock *> &LiveInBlocks) {
   // To determine liveness, we must iterate through the predecessors of blocks
@@ -1306,11 +1315,10 @@ void PromoteMem2Reg::RenamePass(BasicBlock *BB, BasicBlock *Pred) {
     Instruction *I = &*II++; // get the instruction, increment iterator
 
     if (LoadInst *LI = dyn_cast<LoadInst>(I)) {
-      AllocaInst *Src = dyn_cast<AllocaInst>(LI->getPointerOperand());
-      if (!Src)
+      if (!isa<AllocaInst, StructuredAllocaInst>(LI->getPointerOperand()))
         continue;
 
-      auto AI = AllocaLookup.find(Src);
+      auto AI = AllocaLookup.find(LI->getPointerOperand());
       if (AI == AllocaLookup.end())
         continue;
 
@@ -1323,11 +1331,10 @@ void PromoteMem2Reg::RenamePass(BasicBlock *BB, BasicBlock *Pred) {
     } else if (StoreInst *SI = dyn_cast<StoreInst>(I)) {
       // Delete this instruction and mark the name as the current holder of the
       // value
-      AllocaInst *Dest = dyn_cast<AllocaInst>(SI->getPointerOperand());
-      if (!Dest)
+      if (!isa<AllocaInst, StructuredAllocaInst>(SI->getPointerOperand()))
         continue;
 
-      auto ai = AllocaLookup.find(Dest);
+      auto ai = AllocaLookup.find(SI->getPointerOperand());
       if (ai == AllocaLookup.end())
         continue;
 
@@ -1356,11 +1363,17 @@ void PromoteMem2Reg::RenamePass(BasicBlock *BB, BasicBlock *Pred) {
       pushToWorklist(S, BB);
 }
 
-void llvm::PromoteMemToReg(ArrayRef<AllocaInst *> Allocas, DominatorTree &DT,
+void llvm::PromoteMemToReg(ArrayRef<Instruction *> Allocas, DominatorTree &DT,
                            AssumptionCache *AC) {
   // If there is nothing to do, bail out...
   if (Allocas.empty())
     return;
+
+  assert(llvm::all_of(Allocas,
+                      [](Instruction *Inst) {
+                        return isa<AllocaInst, StructuredAllocaInst>(Inst);
+                      }) &&
+         "Can only promote allocas");
 
   PromoteMem2Reg(Allocas, DT, AC).run();
 }

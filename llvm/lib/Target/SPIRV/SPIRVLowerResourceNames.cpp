@@ -27,8 +27,8 @@ using namespace llvm;
 #define DEBUG_TYPE "spirv-lower-resource-names"
 
 static void promoteNameAllocas(ArrayRef<CallInst *> Intrinsics) {
-  MapVector<Function *, SmallVector<AllocaInst *, 4>> Allocas;
-  SmallPtrSet<AllocaInst *, 8> Seen;
+  MapVector<Function *, SmallVector<Instruction *, 4>> Allocas;
+  SmallPtrSet<Instruction *, 8> Seen;
   for (CallInst *CI : Intrinsics) {
     auto *LI = dyn_cast<LoadInst>(CI->getArgOperand(4));
     if (!LI)

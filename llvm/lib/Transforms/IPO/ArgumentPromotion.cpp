@@ -316,7 +316,7 @@ doPromotion(Function *F, FunctionAnalysisManager &FAM,
 
   // We will collect all the new created allocas to promote them into registers
   // after the following loop
-  SmallVector<AllocaInst *, 4> Allocas;
+  SmallVector<Instruction *, 4> Allocas;
 
   // Loop over the argument list, transferring uses of the old arguments over to
   // the new arguments, also transferring over the names as well.

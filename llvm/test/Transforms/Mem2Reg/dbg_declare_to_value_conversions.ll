@@ -39,6 +39,19 @@ define i32 @foo2(ptr %arg) {
 
 declare void @llvm.dbg.declare(metadata, metadata, metadata)
 
+define i64 @structured_alloca(i64 %arg) {
+  %arg.addr = call elementtype(i64) ptr @llvm.structured.alloca.p0()
+  store i64 %arg, ptr %arg.addr
+  call void @llvm.dbg.declare(metadata ptr %arg.addr, metadata !26, metadata !DIExpression()), !dbg !40
+  ; CHECK-LABEL: @structured_alloca
+  ; CHECK-SAME:    (i64 [[arg:%.*]])
+  ; CHECK-NEXT:    #dbg_value(i64 [[arg]], {{.*}}, !DIExpression(),
+  %val = load i64, ptr %arg.addr
+  ret i64 %val
+}
+
+declare ptr @llvm.structured.alloca.p0()
+
 !41 = !{null}
 !42 = !DISubroutineType(types: !41)
 !llvm.module.flags = !{!1, !2}

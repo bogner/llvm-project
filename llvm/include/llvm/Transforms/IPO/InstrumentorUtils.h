@@ -67,7 +67,7 @@ struct InstrumentorIRBuilderTy {
     auto *&AllocaList = AllocaMap[{Fn, DL.getTypeAllocSize(Ty)}];
     if (!AllocaList)
       AllocaList = new AllocaListTy;
-    AllocaInst *AI = nullptr;
+    Instruction *AI = nullptr;
     for (auto *&ListAI : *AllocaList) {
       AI = ListAI;
       ListAI = *AllocaList->rbegin();
@@ -79,7 +79,7 @@ struct InstrumentorIRBuilderTy {
       AI = new AllocaInst(Ty, DL.getAllocaAddrSpace(), "",
                           Fn->getEntryBlock().begin());
     UsedAllocas[AI] = AllocaList;
-    return AI;
+    return cast<AllocaInst>(AI);
   }
 
   /// Return the temporary allocas.
@@ -108,7 +108,7 @@ struct InstrumentorIRBuilderTy {
   IntegerType *Int64Ty = Type::getInt64Ty(Ctx);
   ///}
 
-  using AllocaListTy = SmallVector<AllocaInst *>;
+  using AllocaListTy = SmallVector<Instruction *>;
 
   /// Map that holds a list of currently available allocas for a function and
   /// alloca size.
@@ -116,7 +116,7 @@ struct InstrumentorIRBuilderTy {
 
   /// Map that holds the currently used allocas and the list where they belong.
   /// Once an alloca has to be returned, it is returned directly to its list.
-  MapVector<AllocaInst *, AllocaListTy *> UsedAllocas;
+  MapVector<Instruction *, AllocaListTy *> UsedAllocas;
 
   /// Instructions that should be erased later.
   SmallPtrSet<Instruction *, 32> ErasableInstructions;

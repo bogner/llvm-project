@@ -1984,7 +1984,7 @@ static void relocationViaAlloca(
 
   // TODO-PERF: change data structures, reserve
   DenseMap<Value *, AllocaInst *> AllocaMap;
-  SmallVector<AllocaInst *, 200> PromotableAllocas;
+  SmallVector<Instruction *, 200> PromotableAllocas;
   // Used later to chack that we have enough allocas to store all values
   std::size_t NumRematerializedValues = 0;
   PromotableAllocas.reserve(Live.size());
