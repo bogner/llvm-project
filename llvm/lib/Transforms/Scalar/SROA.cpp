@@ -200,8 +200,8 @@ class SROA {
   SmallSetVector<AllocaInst *, 16> PostPromotionWorklist;
 
   /// A collection of alloca instructions we can directly promote.
-  SetVector<AllocaInst *, SmallVector<AllocaInst *>,
-            SmallPtrSet<AllocaInst *, 16>, 16>
+  SetVector<Instruction *, SmallVector<Instruction *>,
+            SmallPtrSet<Instruction *, 16>, 16>
       PromotableAllocas;
 
   /// A worklist of PHIs to speculate prior to promoting allocas.

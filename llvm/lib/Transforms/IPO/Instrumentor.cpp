@@ -291,7 +291,7 @@ bool InstrumentorImpl::linkRuntime() {
     DominatorTree DT(*Fn);
     auto &Allocas = *It.second;
     erase_if(Allocas,
-             [](const AllocaInst *AI) { return !isAllocaPromotable(AI); });
+             [](const Instruction *AI) { return !isAllocaPromotable(AI); });
     PromoteMemToReg(Allocas, DT);
     delete It.second;
   }
