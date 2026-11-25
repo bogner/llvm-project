@@ -11706,7 +11706,7 @@ TEST(APFloatTest, UserDefinedSemanticsBitcastRoundtrip) {
     APFloat F(Sem, APInt(16, pattern));
     APInt result = F.bitcastToAPInt();
     EXPECT_EQ(result, APInt(16, pattern))
-        << "Roundtrip failed for pattern 0x" << std::hex << pattern;
+        << "Roundtrip failed for pattern 0x" << utohexstr(pattern);
   }
 }
 
