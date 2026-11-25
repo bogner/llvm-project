@@ -14,13 +14,17 @@
 //===----------------------------------------------------------------------===//
 
 #include "llvm/Transforms/Scalar/LogicalSROA.h"
+#include "ScalarOptions.h"
 #include "llvm/ADT/DenseSet.h"
 #include "llvm/ADT/SmallVector.h"
+#include "llvm/Analysis/AssumptionCache.h"
+#include "llvm/Analysis/DomTreeUpdater.h"
 #include "llvm/IR/IRBuilder.h"
 #include "llvm/IR/IntrinsicInst.h"
 #include "llvm/IR/PassManager.h"
 #include "llvm/Pass.h"
 #include "llvm/Transforms/Scalar.h"
+#include "llvm/Transforms/Utils/PromoteMemToReg.h"
 
 using namespace llvm;
 
@@ -207,7 +211,10 @@ static void rewriteSGEPChain(IRBuilder<> &B, StructuredAllocaInst *FieldAlloca,
   SGEP->eraseFromParent();
 }
 
-static bool runOnStructuredAlloca(StructuredAllocaInst &SAI) {
+static bool
+runOnStructuredAlloca(StructuredAllocaInst &SAI,
+                      SmallVectorImpl<StructuredAllocaInst *> &Worklist,
+                      SmallVectorImpl<Instruction *> &PromotableAllocas) {
   Type *AllocaTy = SAI.getAllocationType();
   // We only need to do anything with aggregate types.
   if (!isa<ArrayType, StructType, VectorType>(AllocaTy))
@@ -225,12 +232,16 @@ static bool runOnStructuredAlloca(StructuredAllocaInst &SAI) {
     B.SetInsertPoint(&SAI);
     auto *FieldAlloca =
         cast<StructuredAllocaInst>(B.CreateStructuredAlloca(Field.Ty));
-
     for (auto II : LifetimeIntrinsics)
       copyLifetimeIntrinsicFor(B, II, FieldAlloca);
 
     for (StructuredGEPInst *SGEP : Field.SGEPs)
       rewriteSGEPChain(B, FieldAlloca, SGEP, Field.NumIndices);
+
+    if (isAllocaPromotable(FieldAlloca))
+      PromotableAllocas.push_back(FieldAlloca);
+    else
+      Worklist.push_back(FieldAlloca);
   }
 
   for (auto *II : LifetimeIntrinsics)
@@ -239,27 +250,56 @@ static bool runOnStructuredAlloca(StructuredAllocaInst &SAI) {
   return true;
 }
 
-static bool runLogicalSROA(Function &F) {
+static bool promoteAllocas(SmallVectorImpl<Instruction *> &PromotableAllocas,
+                           LLVMContext &Ctx, DomTreeUpdater &DTU,
+                           AssumptionCache &AC) {
+  if (PromotableAllocas.empty())
+    return false;
+
+  if (getScalarOptions(Ctx).sroa_skip_mem2reg) {
+    LLVM_DEBUG(dbgs() << "Not promoting allocas with mem2reg!\n");
+  } else {
+    LLVM_DEBUG(dbgs() << "Promoting allocas with mem2reg...\n");
+    PromoteMemToReg(PromotableAllocas, DTU.getDomTree(), &AC);
+  }
+
+  PromotableAllocas.clear();
+  return true;
+}
+
+static bool runLogicalSROA(Function &F, DomTreeUpdater &DTU,
+                           AssumptionCache &AC) {
   SmallVector<StructuredAllocaInst *> Worklist;
+  SmallVector<Instruction *> PromotableAllocas;
   BasicBlock &EntryBB = F.getEntryBlock();
   for (Instruction &I : EntryBB) {
-    if (StructuredAllocaInst *SAI = dyn_cast<StructuredAllocaInst>(&I))
-      Worklist.push_back(SAI);
+    if (StructuredAllocaInst *SAI = dyn_cast<StructuredAllocaInst>(&I)) {
+      if (isAllocaPromotable(SAI))
+        PromotableAllocas.push_back(SAI);
+      else
+        Worklist.push_back(SAI);
+    }
   }
 
   bool Changed = false;
   for (StructuredAllocaInst *SAI : Worklist)
-    Changed |= runOnStructuredAlloca(*SAI);
+    Changed |= runOnStructuredAlloca(*SAI, Worklist, PromotableAllocas);
+  Changed |= promoteAllocas(PromotableAllocas, F.getContext(), DTU, AC);
   return Changed;
 }
 
 PreservedAnalyses LogicalSROAPass::run(Function &F,
                                        FunctionAnalysisManager &AM) {
-  if (!runLogicalSROA(F))
+  AssumptionCache &AC = AM.getResult<AssumptionAnalysis>(F);
+  DominatorTree &DT = AM.getResult<DominatorTreeAnalysis>(F);
+  DomTreeUpdater DTU(DT, DomTreeUpdater::UpdateStrategy::Lazy);
+
+  if (!runLogicalSROA(F, DTU, AC))
     return PreservedAnalyses::all();
 
   PreservedAnalyses PA;
   PA.preserveSet<CFGAnalyses>();
+  PA.preserve<DominatorTreeAnalysis>();
   return PA;
 }
 
